@@ -1,0 +1,95 @@
+﻿/* POLARIS Maritime GIS Dashboard Styles */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap");
+
+body {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+code, pre, .font-mono {
+    font-family: "JetBrains Mono", monospace;
+}
+
+/* Custom Sleek Scrollbar */
+.custom-scroll::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+    background: #0b1329;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+    background: #1e2e4f;
+    border-radius: 3px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+    background: #0ea5e9;
+}
+
+/* Leaflet Overrides */
+.leaflet-container {
+    background: #080d1a !important;
+    font-family: inherit;
+}
+
+.leaflet-control-zoom {
+    border: 1px solid #334155 !important;
+    border-radius: 6px !important;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.leaflet-control-zoom a {
+    background-color: #0f172a !important;
+    color: #94a3b8 !important;
+    border-bottom: 1px solid #1e293b !important;
+}
+
+.leaflet-control-zoom a:hover {
+    background-color: #1e293b !important;
+    color: #f8fafc !important;
+}
+
+.leaflet-popup-content-wrapper {
+    background: #0f172a !important;
+    color: #f8fafc !important;
+    border: 1px solid #334155 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7) !important;
+}
+
+.leaflet-popup-tip {
+    background: #0f172a !important;
+    border: 1px solid #334155 !important;
+}
+
+/* Custom Ship & Origin Markers */
+.vessel-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease;
+}
+
+.vessel-marker:hover {
+    transform: scale(1.25);
+    z-index: 1000 !important;
+}
+
+.origin-pulse {
+    animation: origin-beacon 2s infinite ease-out;
+}
+
+@keyframes origin-beacon {
+    0% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 16px rgba(245, 158, 11, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+    }
+}

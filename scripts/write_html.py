@@ -1,0 +1,359 @@
+﻿from pathlib import Path
+h1 = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POLARIS — Probabilistic Maritime Pollution Attribution Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        navy: { 950: "#050a17", 900: "#0a1224", 850: "#0d172e", 800: "#111f3c", 700: "#1b2d56", 600: "#273f73" },
+                        ocean: { 400: "#38bdf8", 500: "#0ea5e9", 600: "#0284c7" },
+                        cyan: { 400: "#22d3ee", 500: "#06b6d4" }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body class="bg-navy-950 text-slate-100 min-h-screen flex flex-col font-sans overflow-hidden select-none">
+    <div id="toast-notification" class="fixed top-12 left-1/2 transform -translate-x-1/2 z-50 bg-ocean-600 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-2xl border border-cyan-400/60 flex items-center space-x-2 transition-all duration-300 opacity-0 pointer-events-none -translate-y-4">
+        <i data-lucide="check-circle" class="w-4 h-4 text-cyan-300"></i>
+        <span id="toast-message">Weights applied successfully</span>
+    </div>
+    <header class="bg-navy-900 border-b border-navy-700/60 px-4 py-2 flex items-center justify-between z-30 shrink-0 shadow-md">
+        <div class="flex items-center space-x-3">
+            <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-ocean-500/30 to-cyan-500/20 border border-cyan-400/40 text-cyan-400 shadow-sm">
+                <i data-lucide="compass" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <span class="font-black tracking-wider text-base text-slate-100">POLARIS</span>
+                    <span class="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 font-bold">Attribution Engine</span>
+                </div>
+                <p class="text-[10px] text-slate-400">Probabilistic Maritime Pollution Decision Support &bull; SIH26143</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-2 bg-navy-850 border border-navy-700 rounded-lg px-3 py-1.5 shadow-inner">
+                <i data-lucide="anchor" class="w-4 h-4 text-cyan-400"></i>
+                <span class="text-xs text-slate-400 font-medium">Scenario:</span>
+                <select id="case-selector" class="bg-transparent text-xs text-cyan-300 font-semibold focus:outline-none cursor-pointer pr-2 max-w-xs md:max-w-md">
+                    <option value="case_01_gulf_mexico">Case 1: Gulf of Mexico Deepwater Transit (NOAA Benchmark)</option>
+                    <option value="case_02_ennore_india">Case 2: Ennore Port / Coromandel Coast (INCOIS Advisory)</option>
+                    <option value="case_03_synthetic_eval">Case 3: Arabian Sea Controlled Attribution (Ground Truth)</option>
+                    <option value="case_04_malacca_strait">Case 4: Singapore Strait / Malacca TSS Chokepoint (Bunker Slick)</option>
+                    <option value="case_05_mumbai_high">Case 5: Mumbai Offshore / Bombay High Platform Corridor</option>
+                    <option value="case_06_bay_of_bengal_sagar">Case 6: Bay of Bengal / Sagar Island Marine Sanctuary</option>
+                </select>
+            </div>
+            <div class="hidden lg:flex items-center space-x-1.5 text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="font-medium text-[11px]">SAR Pipeline Active</span>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2">
+            <button id="btn-open-graph" class="flex items-center space-x-1.5 text-xs bg-navy-850 hover:bg-navy-800 border border-navy-700 px-3 py-1.5 rounded-lg transition text-slate-300">
+                <i data-lucide="network" class="w-3.5 h-3.5 text-cyan-400"></i>
+                <span class="hidden sm:inline">Evidence Graph</span>
+            </button>
+            <button id="btn-open-weights" class="flex items-center space-x-1.5 text-xs bg-navy-850 hover:bg-navy-800 border border-navy-700 px-3 py-1.5 rounded-lg transition text-slate-300">
+                <i data-lucide="sliders" class="w-3.5 h-3.5 text-amber-400"></i>
+                <span class="hidden sm:inline">Weights</span>
+            </button>
+            <button id="btn-open-report" class="flex items-center space-x-1.5 text-xs bg-gradient-to-r from-ocean-600 to-cyan-600 hover:from-ocean-500 hover:to-cyan-500 text-white font-semibold px-3.5 py-1.5 rounded-lg shadow-md transition">
+                <i data-lucide="file-check-2" class="w-3.5 h-3.5"></i>
+                <span>Investigation Brief</span>
+            </button>
+        </div>
+    </header>
+    <div class="bg-navy-950 border-b border-amber-500/20 px-4 py-1 flex items-center justify-between text-[11px] text-amber-300/90 z-20 shrink-0">
+        <div class="flex items-center space-x-1.5 truncate">
+            <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-amber-400 shrink-0"></i>
+            <span class="font-bold uppercase tracking-wider text-[10px] text-amber-400">Forensic Decision Support:</span>
+            <span class="truncate">POLARIS provides probabilistic investigative leads based on satellite SAR, reverse Lagrangian physics, and AIS telemetry. Not proof of legal liability.</span>
+        </div>
+        <div class="hidden lg:flex items-center space-x-2 text-[10px] text-slate-400 shrink-0 ml-4">
+            <span id="provenance-hash-display" class="font-mono text-slate-500 truncate max-w-xs">SHA-256: calculating...</span>
+        </div>
+    </div>
+    <div class="flex-1 flex overflow-hidden relative">
+"""
+h2 = """
+        <!-- Left Sidebar -->
+        <aside class="w-80 bg-navy-900 border-r border-navy-700/50 flex flex-col z-10 shrink-0 overflow-y-auto custom-scroll text-xs">
+            <div class="p-3 border-b border-navy-700/50">
+                <h3 class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+                    <span>Investigation Workflow</span>
+                    <span class="text-[10px] text-emerald-400 font-bold">6/6 VERIFIED</span>
+                </h3>
+                <div class="space-y-1.5 text-[11px]">
+                    <div class="flex items-center justify-between text-slate-300 bg-navy-850 px-2 py-1 rounded border border-navy-700/30">
+                        <span class="flex items-center space-x-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i><span>1. Sentinel-1 SAR Calibration</span></span>
+                        <span class="text-[10px] text-slate-400">Lee Filter</span>
+                    </div>
+                    <div class="flex items-center justify-between text-slate-300 bg-navy-850 px-2 py-1 rounded border border-navy-700/30">
+                        <span class="flex items-center space-x-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i><span>2. U-Net 5-Class Segmentation</span></span>
+                        <span class="text-[10px] text-cyan-400 font-mono font-bold" id="meta-oil-prob">84.2%</span>
+                    </div>
+                    <div class="flex items-center justify-between text-slate-300 bg-navy-850 px-2 py-1 rounded border border-navy-700/30">
+                        <span class="flex items-center space-x-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i><span>3. Slick Polygon Vectorization</span></span>
+                        <span class="text-[10px] text-slate-300 font-mono" id="meta-spill-area">14.8 km²</span>
+                    </div>
+                    <div class="flex items-center justify-between text-slate-300 bg-navy-850 px-2 py-1 rounded border border-navy-700/30">
+                        <span class="flex items-center space-x-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i><span>4. Lagrangian Backward Drift</span></span>
+                        <span class="text-[10px] text-amber-400 font-mono">-48.0h</span>
+                    </div>
+                    <div class="flex items-center justify-between text-slate-300 bg-navy-850 px-2 py-1 rounded border border-navy-700/30">
+                        <span class="flex items-center space-x-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i><span>5. AIS Spatiotemporal Filter</span></span>
+                        <span class="text-[10px] text-slate-300 font-mono" id="meta-candidate-count">5 Vessels</span>
+                    </div>
+                    <div class="flex items-center justify-between text-slate-300 bg-navy-850 px-2 py-1 rounded border border-navy-700/30">
+                        <span class="flex items-center space-x-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i><span>6. Explainable Weighted Score</span></span>
+                        <span class="text-[10px] text-emerald-400 font-bold">Ranked</span>
+                    </div>
+                </div>
+            </div>
+            <div class="p-3 border-b border-navy-700/50 space-y-2">
+                <h3 class="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                    <span>Satellite Detection Evidence</span>
+                    <span id="meta-mission" class="text-cyan-400 font-mono text-[10px]">Sentinel-1A</span>
+                </h3>
+                <div class="bg-navy-850 rounded-lg p-2.5 border border-navy-700/60 space-y-1.5 shadow-sm">
+                    <div class="flex justify-between text-slate-300"><span class="text-slate-400">Acquisition:</span><span id="meta-acq-time" class="font-mono text-slate-200">2026-08-25 06:00 UTC</span></div>
+                    <div class="flex justify-between text-slate-300"><span class="text-slate-400">Centroid:</span><span id="meta-centroid" class="font-mono text-slate-200">28.380°N, -89.150°E</span></div>
+                    <div class="flex justify-between text-slate-300"><span class="text-slate-400">Surface Extent:</span><span id="meta-extent" class="font-mono text-cyan-300 font-semibold">14.85 km²</span></div>
+                    <div class="flex justify-between text-slate-300"><span class="text-slate-400">Confidence:</span><span id="meta-confidence" class="font-mono text-emerald-400 font-bold">88.4%</span></div>
+                    <div class="flex justify-between text-slate-300"><span class="text-slate-400">Look-alike Prob:</span><span id="meta-lookalike" class="font-mono text-slate-400">9.1% (Low)</span></div>
+                    <div class="flex justify-between text-slate-300"><span class="text-slate-400">Radar SNR:</span><span id="meta-snr" class="font-mono text-slate-300">12.4 dB</span></div>
+                </div>
+            </div>
+            <div class="p-3 border-b border-navy-700/50 space-y-2">
+                <h3 class="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                    <span>Ocean Drift & Hydrodynamics</span>
+                    <span class="text-ocean-400 text-[10px]">CMEMS + ERA5</span>
+                </h3>
+                <div class="bg-navy-850 rounded-lg p-2.5 border border-navy-700/60 space-y-1.5 shadow-sm">
+                    <div class="flex justify-between text-slate-300"><span class="text-slate-400">Probable Origin:</span><span id="meta-origin-coord" class="font-mono text-amber-300 font-semibold">28.182°N, -89.418°E</span></div>
+                    <div class="flex justify-between text-slate-300"><span class="text-slate-400">Release Window:</span><span id="meta-origin-window" class="font-mono text-slate-200">14:00 – 19:30 UTC</span></div>
+                    <div class="flex justify-between text-slate-300"><span class="text-slate-400">Spatial Uncertainty:</span><span id="meta-spatial-unc" class="font-mono text-amber-400 font-bold">±14.2 km (95%)</span></div>
+                    <div class="flex justify-between text-slate-300"><span class="text-slate-400">Ocean Current:</span><span id="meta-currents" class="font-mono text-slate-300">0.28 m/s (CMEMS)</span></div>
+                    <div class="flex justify-between text-slate-300"><span class="text-slate-400">10m Surface Wind:</span><span id="meta-winds" class="font-mono text-slate-300">4.9 m/s (ERA5)</span></div>
+                </div>
+            </div>
+            <div class="p-3 space-y-1.5 mt-auto">
+                <h4 class="text-[9px] font-bold uppercase tracking-wider text-slate-400">AIS Source & Coverage</h4>
+                <p id="meta-ais-statement" class="text-[10px] text-slate-400 leading-relaxed bg-navy-850 p-2 rounded border border-navy-700/40">
+                    Source: Regional AIS Data Stream & Correlated Transponder Telemetry.
+                </p>
+            </div>
+        </aside>
+"""
+h3 = """
+        <!-- Center GIS Map -->
+        <main class="flex-1 flex flex-col relative bg-navy-950">
+            <div class="absolute top-3 left-3 z-10 flex flex-col space-y-2 max-w-xs">
+                <div class="bg-navy-900/90 backdrop-blur-md border border-navy-700/80 rounded-lg shadow-xl p-2 text-xs">
+                    <div class="font-bold text-slate-300 text-[10px] uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <span>Basemap Style</span>
+                        <i data-lucide="map" class="w-3 h-3 text-cyan-400"></i>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1 text-[10px]">
+                        <button id="btn-basemap-dark" class="px-2 py-1 rounded bg-ocean-600/30 text-ocean-300 border border-ocean-500/50 font-semibold transition">Tactical Dark</button>
+                        <button id="btn-basemap-sat" class="px-2 py-1 rounded bg-navy-850 hover:bg-navy-750 text-slate-300 border border-navy-700 transition">Satellite</button>
+                        <button id="btn-basemap-topo" class="px-2 py-1 rounded bg-navy-850 hover:bg-navy-750 text-slate-300 border border-navy-700 transition">Ocean Topo</button>
+                        <button id="btn-basemap-light" class="px-2 py-1 rounded bg-navy-850 hover:bg-navy-750 text-slate-300 border border-navy-700 transition">Light Marine</button>
+                    </div>
+                </div>
+                <div class="bg-navy-900/90 backdrop-blur-md border border-navy-700/80 rounded-lg shadow-xl p-2.5 text-xs space-y-1.5">
+                    <div class="font-bold text-slate-300 text-[10px] uppercase tracking-wider mb-1 flex items-center justify-between">
+                        <span>Map Forensic Layers</span>
+                        <i data-lucide="layers" class="w-3 h-3 text-cyan-400"></i>
+                    </div>
+                    <label class="flex items-center space-x-2 text-slate-200 cursor-pointer hover:text-white"><input type="checkbox" id="layer-spill" checked class="rounded border-slate-700 text-ocean-600 focus:ring-0"><span>Observed Spill Polygon</span></label>
+                    <label class="flex items-center space-x-2 text-slate-200 cursor-pointer hover:text-white"><input type="checkbox" id="layer-origin-heat" checked class="rounded border-slate-700 text-ocean-600 focus:ring-0"><span>Origin Probability Heatmap</span></label>
+                    <label class="flex items-center space-x-2 text-slate-200 cursor-pointer hover:text-white"><input type="checkbox" id="layer-contours" checked class="rounded border-slate-700 text-ocean-600 focus:ring-0"><span class="text-cyan-300">Bathymetric Contours (50-2000m)</span></label>
+                    <label class="flex items-center space-x-2 text-slate-200 cursor-pointer hover:text-white"><input type="checkbox" id="layer-current-vectors" checked class="rounded border-slate-700 text-ocean-600 focus:ring-0"><span class="text-cyan-300">Ocean Current Streamlines</span></label>
+                    <label class="flex items-center space-x-2 text-slate-200 cursor-pointer hover:text-white"><input type="checkbox" id="layer-ellipses" checked class="rounded border-slate-700 text-ocean-600 focus:ring-0"><span>Uncertainty Ellipses (95%)</span></label>
+                    <label class="flex items-center space-x-2 text-slate-200 cursor-pointer hover:text-white"><input type="checkbox" id="layer-prob-rings" checked class="rounded border-slate-700 text-ocean-600 focus:ring-0"><span>Iso-Probability Rings (75-95%)</span></label>
+                    <label class="flex items-center space-x-2 text-slate-200 cursor-pointer hover:text-white"><input type="checkbox" id="layer-particles" checked class="rounded border-slate-700 text-ocean-600 focus:ring-0"><span>Lagrangian Drift Particles</span></label>
+                    <label class="flex items-center space-x-2 text-slate-200 cursor-pointer hover:text-white"><input type="checkbox" id="layer-ais-tracks" checked class="rounded border-slate-700 text-ocean-600 focus:ring-0"><span>AIS Vessel Trajectories</span></label>
+                </div>
+                <div class="flex items-center space-x-1 bg-navy-900/90 backdrop-blur-md border border-navy-700/80 rounded-lg p-1 shadow-xl">
+                    <button id="btn-fit-spill" class="px-2 py-1 bg-navy-850 hover:bg-navy-700 rounded text-[10px] text-slate-200 font-medium transition">Spill</button>
+                    <button id="btn-fit-origin" class="px-2 py-1 bg-navy-850 hover:bg-navy-700 rounded text-[10px] text-slate-200 font-medium transition">Origin</button>
+                    <button id="btn-fit-all" class="px-2 py-1 bg-navy-850 hover:bg-navy-700 rounded text-[10px] text-slate-200 font-medium transition">All</button>
+                    <button id="btn-measure-tool" class="px-2 py-1 bg-navy-850 hover:bg-navy-700 rounded text-[10px] text-cyan-400 font-medium transition flex items-center space-x-1"><i data-lucide="ruler" class="w-3 h-3"></i><span>Ruler</span></button>
+                </div>
+            </div>
+            <div class="absolute bottom-16 left-3 z-10 bg-navy-900/90 backdrop-blur-md border border-navy-700/80 rounded-lg shadow-xl p-2.5 text-[10px] space-y-1">
+                <div class="font-bold text-[9px] uppercase tracking-wider text-slate-400 mb-1">GIS Symbology</div>
+                <div class="flex items-center space-x-2"><span class="w-3 h-3 rounded bg-red-900/80 border border-red-500"></span><span class="text-slate-300">Observed Oil Slick</span></div>
+                <div class="flex items-center space-x-2"><span class="w-3 h-3 rounded bg-amber-500/50 border border-amber-400"></span><span class="text-slate-300">Probable Origin Zone</span></div>
+                <div class="flex items-center space-x-2"><span class="w-3 h-0.5 bg-cyan-400"></span><span class="text-slate-300">Depth Contour (Isobath)</span></div>
+                <div class="flex items-center space-x-2"><span class="w-3 h-0.5 bg-red-400"></span><span class="text-slate-300">High-Priority Vessel Track</span></div>
+                <div class="flex items-center space-x-2"><span class="w-3 h-0.5 bg-slate-500"></span><span class="text-slate-300">Normal Vessel Track</span></div>
+            </div>
+            <div class="absolute bottom-16 right-3 z-10 bg-navy-900/90 backdrop-blur-md border border-navy-700/80 rounded-lg px-2.5 py-1 text-[10px] text-slate-300 font-mono shadow-xl flex items-center space-x-3">
+                <span id="cursor-coords">Lat: --.----° | Lon: --.----°</span><span class="text-slate-600">|</span><span id="cursor-depth" class="text-cyan-400">Depth: ~120 m</span>
+            </div>
+            <div id="gis-map" class="flex-1 w-full h-full z-0"></div>
+            <div class="bg-navy-900/95 border-t border-navy-700/60 px-4 py-2 flex items-center space-x-4 z-10 shrink-0 shadow-lg">
+                <div class="flex items-center space-x-2">
+                    <button id="btn-play-pause" class="w-8 h-8 rounded-lg bg-gradient-to-r from-ocean-600 to-cyan-600 hover:from-ocean-500 hover:to-cyan-500 text-white flex items-center justify-center transition shadow-md"><i data-lucide="play" class="w-4 h-4" id="play-icon"></i></button>
+                    <button id="btn-step-back" class="w-7 h-7 rounded-lg bg-navy-850 hover:bg-navy-750 text-slate-300 flex items-center justify-center transition border border-navy-700/50"><i data-lucide="skip-back" class="w-3.5 h-3.5"></i></button>
+                    <button id="btn-step-forward" class="w-7 h-7 rounded-lg bg-navy-850 hover:bg-navy-750 text-slate-300 flex items-center justify-center transition border border-navy-700/50"><i data-lucide="skip-forward" class="w-3.5 h-3.5"></i></button>
+                </div>
+                <div class="flex-1 flex flex-col space-y-1">
+                    <div class="flex justify-between items-center text-[10px]">
+                        <span class="font-mono text-slate-400">-48.0h (Hindcast Start)</span>
+                        <span id="timeline-current-label" class="font-mono font-bold text-cyan-300 bg-cyan-500/10 px-2.5 py-0.5 rounded-full border border-cyan-400/30 shadow-sm">T - 0.0h (Observation)</span>
+                        <span class="font-mono text-slate-400">T 0.0h (Observation)</span>
+                    </div>
+                    <input type="range" id="timeline-slider" min="-48" max="0" step="0.5" value="0" class="w-full h-1.5 bg-navy-700 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+                </div>
+                <div class="flex items-center space-x-1 text-xs">
+                    <span class="text-[10px] text-slate-400">Speed:</span>
+                    <button id="btn-speed-1x" class="px-2 py-0.5 rounded bg-ocean-600/30 text-ocean-300 border border-ocean-500/40 text-[10px] font-bold">1x</button>
+                    <button id="btn-speed-2x" class="px-2 py-0.5 rounded bg-navy-850 hover:bg-navy-750 text-slate-300 text-[10px] border border-navy-700/50">2x</button>
+                </div>
+            </div>
+        </main>
+"""
+h4 = """
+        <!-- Right Sidebar -->
+        <aside class="w-96 bg-navy-900 border-l border-navy-700/50 flex flex-col z-10 shrink-0 overflow-y-auto custom-scroll text-xs">
+            <div class="p-3 border-b border-navy-700/50">
+                <div class="flex items-center justify-between mb-1">
+                    <h3 class="text-[11px] font-bold uppercase tracking-wider text-slate-200 flex items-center space-x-1.5"><i data-lucide="ship" class="w-4 h-4 text-cyan-400"></i><span>Candidate Shortlist</span></h3>
+                    <span class="text-[10px] text-cyan-300 font-mono font-bold" id="candidate-header-count">5 Vessels Evaluated</span>
+                </div>
+                <p class="text-[10px] text-slate-400">Ranked by spatiotemporal, drift trajectory, and behavioral kinematics.</p>
+            </div>
+            <div class="bg-navy-950/80 px-3 py-2 border-b border-navy-700/40 text-[10px]">
+                <div class="flex items-center justify-between text-slate-400 mb-1">
+                    <span class="font-bold uppercase tracking-wider text-slate-400">Active Attribution Weights</span>
+                    <button id="btn-quick-weights" class="text-cyan-400 hover:text-cyan-300 font-semibold underline">Edit</button>
+                </div>
+                <div id="active-weights-strip" class="flex flex-wrap gap-1 font-mono text-[9px]">
+                    <span class="px-1.5 py-0.5 rounded bg-navy-800 text-cyan-300 border border-navy-700">Spat: 0.30</span>
+                    <span class="px-1.5 py-0.5 rounded bg-navy-800 text-cyan-300 border border-navy-700">Temp: 0.25</span>
+                    <span class="px-1.5 py-0.5 rounded bg-navy-800 text-cyan-300 border border-navy-700">Traj: 0.20</span>
+                    <span class="px-1.5 py-0.5 rounded bg-navy-800 text-amber-300 border border-navy-700">Anom: 0.15</span>
+                    <span class="px-1.5 py-0.5 rounded bg-navy-800 text-slate-300 border border-navy-700">Type: 0.10</span>
+                </div>
+            </div>
+            <div class="p-2 border-b border-navy-700/50"><div class="space-y-1.5" id="candidate-list-container"></div></div>
+            <div class="p-3 flex-1 space-y-3" id="evidence-panel-container">
+                <div class="flex items-center justify-between border-b border-navy-700/60 pb-2">
+                    <div><span class="text-[9px] font-bold uppercase tracking-wider text-cyan-400">Selected Candidate Profile</span><h4 id="detail-vessel-name" class="text-sm font-extrabold text-slate-100">MT GULF VOYAGER</h4></div>
+                    <span id="detail-priority-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">HIGH PRIORITY</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 bg-navy-850 p-2.5 rounded-lg border border-navy-700/60 text-[11px] shadow-sm">
+                    <div><span class="text-slate-400 block text-[9px]">MMSI / IMO</span><span id="detail-mmsi-imo" class="font-mono text-slate-200 font-bold">367184920 / 9421882</span></div>
+                    <div><span class="text-slate-400 block text-[9px]">Vessel Type</span><span id="detail-vessel-type" class="text-slate-200">Oil / Chemical Tanker</span></div>
+                    <div><span class="text-slate-400 block text-[9px]">Flag State</span><span id="detail-flag" class="text-slate-200">United States [US]</span></div>
+                    <div><span class="text-slate-400 block text-[9px]">Closest Approach (CPA)</span><span id="detail-cpa" class="font-mono text-amber-400 font-bold">2.4 km (T - 22.5h)</span></div>
+                </div>
+                <div class="space-y-1 bg-navy-850/60 p-2.5 rounded-lg border border-navy-700/50 text-[10px]">
+                    <div class="font-bold text-[9px] uppercase tracking-wider text-cyan-400 mb-1 flex items-center justify-between"><span>Technical & Registry Specs</span><i data-lucide="gauge" class="w-3 h-3 text-cyan-400"></i></div>
+                    <div class="grid grid-cols-3 gap-1 text-slate-300 font-mono">
+                        <div><span class="text-slate-500 block text-[8px]">LOA:</span><span id="detail-length">182 m</span></div>
+                        <div><span class="text-slate-500 block text-[8px]">BEAM:</span><span id="detail-beam">32.2 m</span></div>
+                        <div><span class="text-slate-500 block text-[8px]">DRAUGHT:</span><span id="detail-draft">11.5 m</span></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1 text-slate-300 font-mono pt-1 border-t border-navy-700/30">
+                        <div><span class="text-slate-500 block text-[8px]">DWT TONNES:</span><span id="detail-dwt">49,990 t</span></div>
+                        <div><span class="text-slate-500 block text-[8px]">GROSS TONNAGE:</span><span id="detail-gt">28,500 GT</span></div>
+                    </div>
+                    <div class="pt-1 border-t border-navy-700/30"><span class="text-slate-500 block text-[8px]">DESTINATION & ETA:</span><span id="detail-destination" class="text-slate-200 font-mono text-[9px]">CHENNAI [IN MAA] &bull; ETA 2026-08-27</span></div>
+                    <div class="pt-1 border-t border-navy-700/30"><span class="text-slate-500 block text-[8px]">ENGINE & OPERATOR:</span><span id="detail-operator" class="text-slate-300 text-[9px]">MAN B&W 6S50ME &bull; Global Maritime Corp</span></div>
+                </div>
+                <div class="space-y-1 bg-navy-850/60 p-2.5 rounded-lg border border-navy-700/50">
+                    <div class="flex items-center justify-between text-[9px] font-bold uppercase tracking-wider text-slate-400"><span>Speed Over Ground (SOG) Profile</span><span id="detail-sog-summary" class="font-mono text-cyan-300">Min 3.5 kts &bull; Avg 12.0 kts</span></div>
+                    <div class="h-10 w-full flex items-center justify-center" id="sog-sparkline-container"></div>
+                </div>
+                <div class="space-y-2">
+                    <h5 class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Attribution Compatibility Sub-Scores</h5>
+                    <div class="space-y-1.5 text-[11px]">
+                        <div><div class="flex justify-between text-slate-300 mb-0.5"><span>Spatial Proximity (Origin Zone)</span><span id="score-spatial-val" class="font-mono text-cyan-300 font-bold">92%</span></div><div class="w-full bg-navy-950 rounded-full h-1.5 border border-navy-700/50"><div id="score-spatial-bar" class="bg-gradient-to-r from-ocean-500 to-cyan-400 h-1.5 rounded-full transition-all duration-500" style="width: 92%"></div></div></div>
+                        <div><div class="flex justify-between text-slate-300 mb-0.5"><span>Temporal Overlap (Discharge Window)</span><span id="score-temporal-val" class="font-mono text-cyan-300 font-bold">88%</span></div><div class="w-full bg-navy-950 rounded-full h-1.5 border border-navy-700/50"><div id="score-temporal-bar" class="bg-gradient-to-r from-ocean-500 to-cyan-400 h-1.5 rounded-full transition-all duration-500" style="width: 88%"></div></div></div>
+                        <div><div class="flex justify-between text-slate-300 mb-0.5"><span>Trajectory Drift Consistency</span><span id="score-traj-val" class="font-mono text-emerald-400 font-bold">95%</span></div><div class="w-full bg-navy-950 rounded-full h-1.5 border border-navy-700/50"><div id="score-traj-bar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style="width: 95%"></div></div></div>
+                        <div><div class="flex justify-between text-slate-300 mb-0.5"><span>Behavioral Anomaly Index</span><span id="score-anom-val" class="font-mono text-amber-400 font-bold">65%</span></div><div class="w-full bg-navy-950 rounded-full h-1.5 border border-navy-700/50"><div id="score-anom-bar" class="bg-amber-500 h-1.5 rounded-full transition-all duration-500" style="width: 65%"></div></div></div>
+                        <div><div class="flex justify-between text-slate-300 mb-0.5"><span>Vessel / Cargo Compatibility</span><span id="score-type-val" class="font-mono text-cyan-300 font-bold">95%</span></div><div class="w-full bg-navy-950 rounded-full h-1.5 border border-navy-700/50"><div id="score-type-bar" class="bg-gradient-to-r from-ocean-500 to-cyan-400 h-1.5 rounded-full transition-all duration-500" style="width: 95%"></div></div></div>
+                    </div>
+                </div>
+                <div class="space-y-1.5"><h5 class="text-[9px] font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-1"><i data-lucide="help-circle" class="w-3 h-3 text-cyan-400"></i><span>Key Evidentiary Points</span></h5><ul id="detail-evidence-list" class="space-y-1 text-[10px] text-slate-300 bg-navy-850 p-2.5 rounded-lg border border-navy-700/60 list-disc list-inside"></ul></div>
+                <div class="space-y-1.5"><h5 class="text-[9px] font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-1"><i data-lucide="alert-triangle" class="w-3 h-3 text-amber-400"></i><span>Kinematic Anomaly Signatures</span></h5><div id="detail-anomaly-container" class="space-y-1"></div></div>
+                <div class="pt-2 border-t border-navy-700/60 space-y-2">
+                    <h5 class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Analyst Review Actions</h5>
+                    <div class="flex space-x-2">
+                        <button id="btn-flag-candidate" class="flex-1 py-1.5 px-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-[11px] font-medium transition flex items-center justify-center space-x-1"><i data-lucide="flag" class="w-3 h-3"></i><span>Flag Lead</span></button>
+                        <button id="btn-exclude-candidate" class="flex-1 py-1.5 px-2 bg-navy-850 hover:bg-navy-750 text-slate-300 border border-navy-700 rounded-lg text-[11px] font-medium transition flex items-center justify-center space-x-1"><i data-lucide="user-x" class="w-3 h-3"></i><span>Exclude</span></button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+    <div id="modal-weights" class="fixed inset-0 bg-navy-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-navy-900 border border-navy-700 rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-navy-700/60 pb-3">
+                <div class="flex items-center space-x-2"><i data-lucide="sliders" class="w-4 h-4 text-cyan-400"></i><h3 class="font-bold text-slate-100 text-sm">Attribution Scoring Weights</h3></div>
+                <button id="btn-close-weights" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <p class="text-xs text-slate-400">Adjust the relative influence of physical, temporal, and behavioral parameters. Rankings update immediately.</p>
+            <div class="space-y-3 text-xs">
+                <div><div class="flex justify-between text-slate-300 mb-1"><span>Spatial Proximity Weight (w1)</span><span id="slider-val-spatial" class="font-mono text-cyan-400 font-bold">0.30</span></div><input type="range" id="slider-weight-spatial" min="0.0" max="1.0" step="0.05" value="0.30" class="w-full h-1.5 bg-navy-750 rounded appearance-none accent-cyan-400"></div>
+                <div><div class="flex justify-between text-slate-300 mb-1"><span>Temporal Window Overlap Weight (w2)</span><span id="slider-val-temporal" class="font-mono text-cyan-400 font-bold">0.25</span></div><input type="range" id="slider-weight-temporal" min="0.0" max="1.0" step="0.05" value="0.25" class="w-full h-1.5 bg-navy-750 rounded appearance-none accent-cyan-400"></div>
+                <div><div class="flex justify-between text-slate-300 mb-1"><span>Trajectory Drift Alignment Weight (w3)</span><span id="slider-val-trajectory" class="font-mono text-cyan-400 font-bold">0.20</span></div><input type="range" id="slider-weight-trajectory" min="0.0" max="1.0" step="0.05" value="0.20" class="w-full h-1.5 bg-navy-750 rounded appearance-none accent-cyan-400"></div>
+                <div><div class="flex justify-between text-slate-300 mb-1"><span>Behavioral Anomaly Weight (w4)</span><span id="slider-val-anomaly" class="font-mono text-amber-400 font-bold">0.15</span></div><input type="range" id="slider-weight-anomaly" min="0.0" max="1.0" step="0.05" value="0.15" class="w-full h-1.5 bg-navy-750 rounded appearance-none accent-amber-400"></div>
+                <div><div class="flex justify-between text-slate-300 mb-1"><span>Vessel Type Compatibility Weight (w5)</span><span id="slider-val-type" class="font-mono text-cyan-400 font-bold">0.10</span></div><input type="range" id="slider-weight-type" min="0.0" max="1.0" step="0.05" value="0.10" class="w-full h-1.5 bg-navy-750 rounded appearance-none accent-cyan-400"></div>
+                <div><div class="flex justify-between text-slate-300 mb-1"><span>AIS Silence Gap Suspicion</span><span id="slider-val-gap" class="font-mono text-red-400 font-bold">0.10</span></div><input type="range" id="slider-weight-gap" min="0.0" max="0.30" step="0.05" value="0.10" class="w-full h-1.5 bg-navy-750 rounded appearance-none accent-red-400"></div>
+            </div>
+            <div class="flex justify-end space-x-2 pt-2 border-t border-navy-700/60">
+                <button id="btn-reset-weights" class="px-3 py-1.5 bg-navy-800 hover:bg-navy-700 text-slate-300 rounded-lg text-xs">Reset Defaults</button>
+                <button id="btn-apply-weights" class="px-4 py-1.5 bg-gradient-to-r from-ocean-600 to-cyan-600 hover:from-ocean-500 hover:to-cyan-500 text-white rounded-lg text-xs font-bold shadow-md">Apply & Recompute</button>
+            </div>
+        </div>
+    </div>
+    <div id="modal-graph" class="fixed inset-0 bg-navy-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-6">
+        <div class="bg-navy-900 border border-navy-700 rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+            <div class="p-4 border-b border-navy-700/60 flex items-center justify-between">
+                <div class="flex items-center space-x-2"><i data-lucide="network" class="w-5 h-5 text-cyan-400"></i><h3 class="font-bold text-slate-100 text-sm">Forensic Evidentiary Linkage Graph</h3></div>
+                <button id="btn-close-graph" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <div class="p-4 overflow-y-auto custom-scroll text-xs space-y-3" id="graph-content-body"></div>
+        </div>
+    </div>
+    <div id="modal-report" class="fixed inset-0 bg-navy-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-6">
+        <div class="bg-navy-900 border border-navy-700 rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col">
+            <div class="p-4 border-b border-navy-700/60 flex items-center justify-between shrink-0">
+                <div class="flex items-center space-x-2"><i data-lucide="file-check" class="w-5 h-5 text-cyan-400"></i><div><h3 class="font-bold text-slate-100 text-sm">Maritime Pollution Investigation Brief</h3><p class="text-[10px] text-cyan-300 font-mono" id="modal-report-hash">SHA-256: calculating...</p></div></div>
+                <div class="flex items-center space-x-2">
+                    <button id="btn-copy-markdown" class="px-2.5 py-1 bg-navy-850 hover:bg-navy-750 border border-navy-700 rounded-lg text-xs text-slate-300 flex items-center space-x-1"><i data-lucide="copy" class="w-3.5 h-3.5"></i><span>Copy Markdown</span></button>
+                    <button id="btn-close-report" class="text-slate-400 hover:text-white p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+            </div>
+            <div class="p-6 overflow-y-auto custom-scroll text-slate-200 text-xs leading-relaxed space-y-4 font-mono select-text whitespace-pre-wrap" id="report-content-body"></div>
+            <div class="p-3 border-t border-navy-700/60 bg-navy-950 flex justify-between items-center text-[10px] text-slate-400 shrink-0">
+                <span>POLARIS Automated Forensic Intelligence Export</span><span class="text-amber-400/90 font-bold">Strict Decision Support Only &bull; Not Final Adjudication</span>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
+"""
+full_content = h1 + h2 + h3 + h4
+Path("backend/app/static/index.html").write_text(full_content, encoding="utf-8")
+print("Successfully generated backend/app/static/index.html!")
