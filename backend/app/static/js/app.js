@@ -49,9 +49,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function initMap() {
     // Basemaps definition
-    baseLayers["dark"] = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: "&copy; CartoDB &copy; OpenStreetMap",
-        maxZoom: 18
+    baseLayers["dark"] = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+        maxZoom: 18,
+        className: "map-dark-tiles"
     });
     baseLayers["sat"] = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
         attribution: "&copy; Esri, Maxar, Earthstar Geographics",
@@ -61,8 +62,8 @@ function initMap() {
         attribution: "&copy; OpenTopoMap &copy; OpenStreetMap",
         maxZoom: 17
     });
-    baseLayers["light"] = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-        attribution: "&copy; CartoDB &copy; OpenStreetMap",
+    baseLayers["light"] = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
         maxZoom: 18
     });
 

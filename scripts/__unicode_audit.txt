@@ -1,0 +1,63 @@
+Line    3: U+2500 -- ─────────────────────────────────────────────────────────────────────────────
+Line    4: U+2014 -- POLARIS — Phase 2: Standalone U-Net Training Script
+Line    8: U+2500 -- ─────────────────
+Line   16: U+2014 -- 3. The loss, metrics, and model architecture all respect NUM_CLASSES — no
+Line   20: U+2500 -- ─────
+Line   31: U+2500 -- # ─── Standard library ────────────────────────────────────────────────────────
+Line   41: U+2500 -- # ─── Third-party ─────────────────────────────────────────────────────────────
+Line   60: U+2500 -- # ─── CONFIG ──────────────────────────────────────────────────────────────────
+Line   62: U+2192 -- # binary → 5-class swap except NUM_CLASSES.
+Line   65: U+2500 -- # ── Paths ────────────────────────────────────────────────────────────────
+Line   70: U+2500 -- # ── Dataset layout ───────────────────────────────────────────────────────
+Line   79: U+2500 -- # ── Model ────────────────────────────────────────────────────────────────
+Line   82: U+00D7 -- "img_size":       256,                # H=W; images are already 256×256
+Line   84: U+2500 -- # ── Split (image-level, not patch-level, to avoid leakage) ───────────────
+Line   89: U+2500 -- # ── Training ─────────────────────────────────────────────────────────────
+Line   96: U+2500 -- # ── Augmentation ─────────────────────────────────────────────────────────
+Line   98: U+2014 -- # NO colour jitter — SAR has no hue information.
+Line  101: U+00B1 -- "aug_rotate":     True,               # ±30° random rotation
+Line  105: U+2500 -- # ── Loss ─────────────────────────────────────────────────────────────────
+Line  110: U+2500 -- # ── Stopping / Checkpointing ──────────────────────────────────────────────
+Line  115: U+2500 -- # ─── REPRODUCIBILITY ─────────────────────────────────────────────────────────
+Line  127: U+2500 -- # ─── SAR PREPROCESSING ───────────────────────────────────────────────────────
+Line  168: U+2192 -- 1. RGB → grayscale (the dataset stores SAR as RGB PNGs)
+Line  171: U+00D7 -- 4. Resize to target_size × target_size
+Line  172: U+2192 -- 5. Robust percentile normalization → [0, 1] float32
+Line  176: U+2014 -- # Step 1: grayscale — SAR has no hue; R≈G≈B in these PNGs
+Line  190: U+00D7 -- # Step 4: Resize (images are already 256×256 but kept configurable)
+Line  196: U+2192 -- # Step 5: Robust min-max normalisation [2nd, 98th percentile → 0, 1]
+Line  213: U+2192 -- # 0 → 0 (background), 255 → 1 (oil-spill)
+Line  217: U+2500 -- # ─── DATASET ─────────────────────────────────────────────────────────────────
+Line  285: U+00B1 -- # Random rotation ±30°
+Line  309: U+2500 -- # ─── MODEL ───────────────────────────────────────────────────────────────────
+Line  313: U+2192 -- #   - Channel depths match unet_detector.py: 1→32→64→128 encoder
+Line  316: U+2192 -- """Two successive (Conv → BN → ReLU) blocks."""
+Line  337: U+2192 -- Encoder: 1→32→64→128
+Line  338: U+2192 -- Decoder: 128→64→32 with skip connections
+Line  342: U+2014 -- Setting num_classes=5 gives the 5-class production model — no other
+Line  368: U+2500 -- # ─── LOSS ────────────────────────────────────────────────────────────────────
+Line  389: U+2192 -- # One-hot encode targets: (N, H, W) → (N, C, H, W)
+Line  431: U+2500 -- # ─── METRICS ─────────────────────────────────────────────────────────────────
+Line  440: U+2014 -- Returns IoU, Dice/F1, Precision, Recall — computed on the TEST set.
+Line  489: U+2500 -- # ─── DATA SPLIT ──────────────────────────────────────────────────────────────
+Line  550: U+2500 -- # ─── TRAINING LOOP ───────────────────────────────────────────────────────────
+Line  597: U+2500 -- # ─── MAIN ────────────────────────────────────────────────────────────────────
+Line  614: U+2500 -- # ── Apply CLI overrides ──────────────────────────────────────────────────
+Line  623: U+2500 -- # ── Setup ────────────────────────────────────────────────────────────────
+Line  627: U+2014 -- print(f"  POLARIS — U-Net Binary SAR Oil-Spill Training")
+Line  631: U+00D7 -- print(f"  img_size:    {cfg['img_size']}×{cfg['img_size']}")
+Line  638: U+2500 -- # ── Data ─────────────────────────────────────────────────────────────────
+Line  639: U+2026 -- print("\n[1/5] Collecting image/mask pairs …")
+Line  649: U+2026 -- print("\n[2/5] Splitting dataset (70/15/15, image-level) …")
+Line  673: U+2500 -- # ── Model ────────────────────────────────────────────────────────────────
+Line  674: U+2026 -- print("\n[3/5] Initialising model …")
+Line  691: U+2500 -- # ── Training ─────────────────────────────────────────────────────────────
+Line  692: U+2026 -- print("\n[4/5] Training …")
+Line  719: U+2713 -- print(f"  ✓ Checkpoint saved  (best val IoU = {best_val_iou:.4f})")
+Line  731: U+2500 -- # ── Test evaluation ───────────────────────────────────────────────────────
+Line  732: U+2026 -- print("\n[5/5] Evaluating on held-out TEST set …")
+Line  737: U+2500 -- print("\n  ── Test-Set Metrics (Oil-Spill Class) ──────────────────────")
+Line  744: U+2500 -- # ── Save metrics ─────────────────────────────────────────────────────────
+Line  769: U+2192 -- print(f"\n  Metrics saved → {cfg['metrics_out']}")
+Line  770: U+2192 -- print(f"  Model saved   → {cfg['model_out']}")
+Total: 62 lines with non-ASCII

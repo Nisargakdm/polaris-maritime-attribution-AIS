@@ -1,0 +1,14 @@
+{
+  "incident_id": "INC-DEMO-001",
+  "name": "Gulf of Mexico Deepwater SAR Hydrocarbon Detection (Demo Incident)",
+  "mode": "historical",
+  "satellite_image": "data/raw/archive/images/images/val/palsar_0.png",
+  "detection_time": "2023-01-01T14:30:00Z",
+  "spill_polygon": "Extracted via U-Net Detector (data/models/model.pth)",
+  "ocean_data": "CMEMS Surface Velocity Vector Reanalysis (Gulf of Mexico)",
+  "wind_data": "ERA5 Atmospheric 10m Wind Fields",
+  "ais_data": "data/raw/ais/noaa_gulf_ais.csv",
+  "ground_truth": "Demo Benchmark Pairing (Unverified)",
+  "case_source": "NOAA MarineCadastre AccessAIS + JAXA PALSAR / Sentinel-1 Deep-SAR Benchmark",
+  "_notes": "CONSTRUCTED DEMO SCENARIO: Pairs a genuine SAR oil spill scene from the Deep-SAR dataset with real NOAA MarineCadastre historical AIS vessel traffic for the Gulf of Mexico corridor. Created for pipeline demonstration and verification; not an authenticated legal spill attribution."
+}

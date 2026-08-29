@@ -87,7 +87,61 @@ Open your browser and navigate to:
 
 ---
 
-## 5. Automated Testing & Validation
+## 5. U-Net SAR Oil-Spill Model Training (Phase 2)
+
+The project includes an end-to-end U-Net segmentation pipeline trained on Sentinel-1 & PALSAR SAR imagery (Deep-SAR dataset).
+
+### Dataset Location
+Raw imagery and binary ground-truth masks are structured at:
+- `data/raw/archive/images/images/{train,val}/*.png` (256x256 SAR scenes)
+- `data/raw/archive/masks/masks/{train,val}/*.png` (256x256 binary masks)
+
+### Option A: Local Training (with Preprocessing Cache)
+To train locally using the standalone training script:
+```bash
+# Run standalone training (with automatic deterministic SAR preprocessing cache):
+python scripts/train_unet.py --epochs 30 --batch-size 8
+
+# Quick 3-epoch smoke test:
+python scripts/train_unet.py --epochs 3 --batch-size 8
+```
+Outputs are automatically saved to:
+- Trained model weights: `data/models/model.pth`
+- Test-set evaluation metrics: `data/models/metrics.json`
+
+### Option B: High-Speed GPU Training via Google Colab
+For fast multi-epoch training on free T4 GPUs:
+1. Open `scripts/train_unet_colab.ipynb` in [Google Colab](https://colab.research.google.com/).
+2. Enable GPU under **Runtime** -> **Change runtime type** -> **T4 GPU**.
+3. Upload `data/raw/archive/` to your Google Drive (`MyDrive/polaris/archive/`).
+4. Execute the notebook. Model weights (`model.pth`) and verified test metrics (`metrics.json`) will be saved directly back to Google Drive.
+5. Download both files to `data/models/` in your local workspace.
+
+---
+
+## 6. AIS Vessel Data & DuckDB Storage (Phase 2)
+
+POLARIS uses an embedded DuckDB database (`data/db/polaris.duckdb`) for fast historical vessel trajectory spatio-temporal hindcast queries.
+
+### Initialize Schema
+```bash
+# Creates table schema without fake data:
+python scripts/build_ais_db.py
+```
+
+### Ingest Historical AIS Records
+When historical AIS CSV data is available:
+```bash
+# Drop CSV in data/raw/ais/<incident_id>_ais.csv and run:
+python scripts/build_ais_db.py --csv data/raw/ais/sample_incident_ais.csv --incident-id INC-2026-001
+```
+
+### Incident Config Template
+Standardized incident metadata templates are stored at `data/incidents/incident_config.json`.
+
+---
+
+## 7. Automated Testing & Validation
 Run the full PyTest suite:
 ```bash
 pytest backend/tests
@@ -100,7 +154,7 @@ Test suite coverage:
 
 ---
 
-## 6. Preloaded Benchmark Cases
+## 8. Preloaded Benchmark Cases
 
 1. **Case 1: Gulf of Mexico (NOAA Benchmark)**
    - Sentinel-1 SAR acquisition over Mississippi Canyon transit corridor.
@@ -108,9 +162,9 @@ Test suite coverage:
 2. **Case 2: Ennore Port / Coromandel Coast (INCOIS Advisory)**
    - Coromandel coastal zone incident calibrated with INCOIS public advisory data and DG Shipping shipping records.
 3. **Case 3: Arabian Sea Ground-Truth Evaluation**
-   - Controlled synthetic scenario with mathematically known discharge release at $T - 24	ext{h}$ to verify Top-1 recovery.
+   - Controlled synthetic scenario with mathematically known discharge release at $T - 24\text{h}$ to verify Top-1 recovery.
 
 ---
 
-## 7. License & Compliance
+## 9. License & Compliance
 All dependencies and data sources are 100% open-source or public domain. Full audit details are available in [`open_source_license_report.md`](open_source_license_report.md).

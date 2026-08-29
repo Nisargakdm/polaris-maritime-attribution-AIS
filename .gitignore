@@ -48,3 +48,9 @@ wheels/
 *~
 .DS_Store
 Thumbs.db
+
+# Data - keep configs, ignore heavy/generated data
+data/raw/
+data/processed/
+data/db/
+data/models/*.pth

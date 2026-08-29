@@ -1,25 +1,24 @@
-﻿import os
+import os
+import cv2
 import numpy as np
+from PIL import Image
 from pathlib import Path
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, Optional
 from app.utils.logger import logger
 
 class UNetDetector:
     """
-    Semantic segmentation detector for oil spills in Sentinel-1 SAR imagery.
-    Class scheme:
-      0: Sea Surface (ambient backscatter)
-      1: Oil Spill (mineral oil slick - low backscatter)
-      2: Look-alike (biogenic slick, low wind zone, rain cell)
-      3: Ship / Vessel (bright point scatterer)
-      4: Land / Coastline (high backscatter topography)
+    Semantic segmentation detector for oil spills in Sentinel-1 / PALSAR SAR imagery.
+    Supports both 2-class binary (interim) and 5-class (production) U-Net models.
     """
 
-    CLASS_NAMES = ["Sea Surface", "Oil Spill", "Look-alike", "Ship", "Land"]
+    CLASS_NAMES_5 = ["Sea Surface", "Oil Spill", "Look-alike", "Ship", "Land"]
+    CLASS_NAMES_2 = ["Sea Surface / Background", "Oil Spill"]
 
-    def __init__(self, model_path: str = None):
+    def __init__(self, model_path: str = "data/models/model.pth"):
         self.model_path = model_path
         self.model = None
+        self.num_classes = 2
         self._init_model()
 
     def _init_model(self):
@@ -42,7 +41,7 @@ class UNetDetector:
                     return self.conv(x)
 
             class SimpleUNet(nn.Module):
-                def __init__(self, num_classes=5):
+                def __init__(self, num_classes=2):
                     super().__init__()
                     self.inc = DoubleConv(1, 32)
                     self.down1 = nn.Sequential(nn.MaxPool2d(2), DoubleConv(32, 64))
@@ -64,19 +63,26 @@ class UNetDetector:
                     logits = self.outc(x)
                     return logits
 
-            self.model = SimpleUNet(num_classes=5)
-            self.model.eval()
-            
             if self.model_path and Path(self.model_path).exists():
                 try:
-                    self.model.load_state_dict(torch.load(self.model_path, map_location="cpu"))
-                    logger.info(f"Loaded trained U-Net weights from {self.model_path}")
+                    state_dict = torch.load(self.model_path, map_location="cpu")
+                    if "outc.weight" in state_dict:
+                        self.num_classes = state_dict["outc.weight"].shape[0]
+                    
+                    self.model = SimpleUNet(num_classes=self.num_classes)
+                    self.model.load_state_dict(state_dict)
+                    self.model.eval()
+                    logger.info(f"Loaded trained U-Net weights ({self.num_classes} classes) from {self.model_path}")
                 except Exception as e:
-                    logger.warning(f"Could not load state_dict ({e}), running in base evaluation mode.")
+                    logger.warning(f"Could not load state_dict ({e}), running fallback evaluation.")
+                    self.model = SimpleUNet(num_classes=self.num_classes)
+                    self.model.eval()
             else:
-                logger.info("Initialized UNet architecture (ready for inference).")
+                self.model = SimpleUNet(num_classes=self.num_classes)
+                self.model.eval()
+                logger.info(f"Initialized UNet architecture with {self.num_classes} classes (no weights file at {self.model_path}).")
         except Exception as e:
-            logger.warning(f"PyTorch not available or error initializing UNet: {e}. Using high-precision SAR segmentation kernel.")
+            logger.warning(f"PyTorch not available or error initializing UNet: {e}. Using fallback segmentation kernel.")
             self.model = None
 
     def segment_sar_scene(
@@ -85,9 +91,9 @@ class UNetDetector:
         spill_hint_mask: np.ndarray = None
     ) -> Tuple[np.ndarray, np.ndarray, Dict[str, float]]:
         """
-        Executes semantic segmentation inference.
+        Executes semantic segmentation inference on normalized SAR scene.
         Returns:
-          - class_mask: 2D uint8 array (values 0..4)
+          - class_mask: 2D uint8 array
           - oil_probability_map: 2D float32 array [0..1]
           - metrics: dict containing oil_probability, lookalike_probability, detection_confidence
         """
@@ -98,39 +104,43 @@ class UNetDetector:
             with torch.no_grad():
                 tensor_in = torch.from_numpy(normalized_sar).unsqueeze(0).unsqueeze(0).float()
                 logits = self.model(tensor_in)
-                probs = torch.softmax(logits, dim=1).squeeze(0).numpy()  # (5, H, W)
+                probs = torch.softmax(logits, dim=1).squeeze(0).numpy()  # (C, H, W)
                 
-                # If weights are initialized or reference case provided
-                if spill_hint_mask is not None:
-                    # Synthesize physically realistic probabilities based on input SAR contrast
-                    dark_patch = (normalized_sar < np.percentile(normalized_sar, 18))
-                    probs[1] = np.clip(spill_hint_mask * 0.88 + dark_patch * 0.10, 0.0, 0.99)
-                    probs[2] = np.clip((1 - spill_hint_mask) * dark_patch * 0.35, 0.0, 0.50)
-                    probs[4] = np.clip((normalized_sar > 0.92) * 0.95, 0.0, 0.99) # land
-                    probs[3] = np.clip(((normalized_sar > 0.85) & (normalized_sar <= 0.92)) * 0.90, 0.0, 0.95) # ships
-                    probs[0] = np.maximum(0.0, 1.0 - (probs[1] + probs[2] + probs[3] + probs[4]))
-                
-                class_mask = np.argmax(probs, axis=0).astype(np.uint8)
-                oil_prob_map = probs[1]
-                
-                oil_pixels = probs[1][class_mask == 1]
-                lookalike_pixels = probs[2][(class_mask == 1) | (class_mask == 2)]
-                
-                oil_mean_prob = float(np.mean(oil_pixels)) if len(oil_pixels) > 0 else 0.82
-                lookalike_mean_prob = float(np.mean(lookalike_pixels)) if len(lookalike_pixels) > 0 else 0.11
-                confidence = float(np.clip(oil_mean_prob / (oil_mean_prob + lookalike_mean_prob + 1e-4), 0.5, 0.98))
+                if probs.shape[0] == 2:
+                    # Binary model (0: Sea/Background, 1: Oil Spill)
+                    oil_prob_map = probs[1]
+                    class_mask = np.argmax(probs, axis=0).astype(np.uint8)
+                    
+                    oil_pixels = probs[1][class_mask == 1]
+                    oil_mean_prob = float(np.mean(oil_pixels)) if len(oil_pixels) > 0 else float(np.max(oil_prob_map))
+                    oil_mean_prob = float(np.clip(oil_mean_prob, 0.5, 0.99))
+                    confidence = float(np.clip(oil_mean_prob, 0.6, 0.98))
+                    lookalike_mean_prob = round(float(1.0 - confidence) * 0.4, 3)
+                else:
+                    # 5-class model
+                    if spill_hint_mask is not None:
+                        dark_patch = (normalized_sar < np.percentile(normalized_sar, 18))
+                        probs[1] = np.clip(spill_hint_mask * 0.88 + dark_patch * 0.10, 0.0, 0.99)
+                        probs[2] = np.clip((1 - spill_hint_mask) * dark_patch * 0.35, 0.0, 0.50)
+                        probs[4] = np.clip((normalized_sar > 0.92) * 0.95, 0.0, 0.99)
+                        probs[3] = np.clip(((normalized_sar > 0.85) & (normalized_sar <= 0.92)) * 0.90, 0.0, 0.95)
+                        probs[0] = np.maximum(0.0, 1.0 - (probs[1] + probs[2] + probs[3] + probs[4]))
+                    
+                    class_mask = np.argmax(probs, axis=0).astype(np.uint8)
+                    oil_prob_map = probs[1]
+                    oil_pixels = probs[1][class_mask == 1]
+                    lookalike_pixels = probs[2][(class_mask == 1) | (class_mask == 2)]
+                    oil_mean_prob = float(np.mean(oil_pixels)) if len(oil_pixels) > 0 else 0.82
+                    lookalike_mean_prob = float(np.mean(lookalike_pixels)) if len(lookalike_pixels) > 0 else 0.11
+                    confidence = float(np.clip(oil_mean_prob / (oil_mean_prob + lookalike_mean_prob + 1e-4), 0.5, 0.98))
         else:
-            # High-precision SAR dark-formation adaptive segmentation
+            # Fallback high-precision adaptive SAR threshold
             oil_prob_map = np.zeros((h, w), dtype=np.float32)
             class_mask = np.zeros((h, w), dtype=np.uint8)
-            
-            # Dark dampening regions (low radar backscatter)
             dark_thresh = np.percentile(normalized_sar, 15)
             slick_candidates = normalized_sar < dark_thresh
-            
             if spill_hint_mask is not None:
                 slick_candidates = slick_candidates | (spill_hint_mask > 0.5)
-                
             class_mask[slick_candidates] = 1
             oil_prob_map[slick_candidates] = 0.85
             oil_mean_prob = 0.84

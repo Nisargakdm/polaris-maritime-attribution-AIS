@@ -1,4 +1,4 @@
-﻿/* POLARIS Maritime GIS Dashboard Styles */
+/* POLARIS Maritime GIS Dashboard Styles */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap");
 
 body {
@@ -92,4 +92,9 @@ code, pre, .font-mono {
     100% {
         box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
     }
+}
+
+/* Dark basemap tile filter for keyless OpenStreetMap */
+.map-dark-tiles {
+    filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(90%);
 }

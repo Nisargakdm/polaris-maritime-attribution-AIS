@@ -1,0 +1,26 @@
+{
+  "model_info": {
+    "num_classes": 2,
+    "img_size": 256,
+    "architecture": "SimpleUNet (binary interim model)",
+    "note": "Binary interim model trained on Deep-SAR Oil Spill Segmentation dataset. Set num_classes=5 for multi-class production training."
+  },
+  "training": {
+    "epochs_run": 2,
+    "best_val_iou": 0.3295,
+    "seed": 42,
+    "train_pairs": 50,
+    "val_pairs": 12,
+    "test_pairs": 12
+  },
+  "test_metrics": {
+    "oil_iou": 0.289,
+    "oil_dice_f1": 0.4484,
+    "oil_precision": 0.9548,
+    "oil_recall": 0.293,
+    "tp": 52241,
+    "fp": 2473,
+    "fn": 126046,
+    "tn": 605672
+  }
+}
