@@ -22,6 +22,7 @@ from app.services.trajectory_analyzer import TrajectoryAnalyzer
 from app.services.attribution_scorer import AttributionScorer
 from app.services.evidence_graph import EvidenceGraphBuilder
 from app.services.report_generator import ReportGenerator
+from app.services.vessel_risk_profiler import VesselRiskProfiler
 
 from app.ais_providers.marine_cadastre import MarineCadastreProvider
 from app.ais_providers.curated_indian_case import CuratedIndianCaseProvider
@@ -532,7 +533,21 @@ class CaseManager:
         return self.cases_drifts.get(case_id)
 
     def get_candidates(self, case_id: str) -> List[VesselCandidate]:
-        return self.cases_candidates.get(case_id, [])
+        candidates = self.cases_candidates.get(case_id, [])
+        
+        # Lazy-load general risk profiles for each candidate if not already loaded
+        # This ensures the endpoint can serve them without blocking on initial pipeline
+        for cand in candidates:
+            if cand.general_risk_profile is None:
+                try:
+                    risk_profile_dict = VesselRiskProfiler.compute_risk_profile(cand.mmsi)
+                    from app.models.schemas import VesselRiskProfile
+                    cand.general_risk_profile = VesselRiskProfile(**risk_profile_dict)
+                except Exception as e:
+                    logger.warning(f"Failed to compute risk profile for MMSI {cand.mmsi}: {e}")
+                    # Risk profile remains None; client will see general_risk_profile as null
+        
+        return candidates
 
     def get_evidence_graph(self, case_id: str) -> Optional[EvidenceGraph]:
         return self.cases_evidence_graphs.get(case_id)

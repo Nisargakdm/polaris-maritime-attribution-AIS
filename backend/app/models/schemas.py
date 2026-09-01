@@ -113,6 +113,63 @@ class AnomalyFlag(BaseModel):
     lat: float
     lon: float
 
+class GapAnalysisResult(BaseModel):
+    """Component analysis of AIS transponder gaps in historical track."""
+    total_gaps_detected: int
+    gap_frequency_per_hour: float
+    gap_severity: Literal["LOW", "MEDIUM", "HIGH"]
+    largest_gap_minutes: float
+    description: str
+
+class SpeedAnomalyAnalysisResult(BaseModel):
+    """Component analysis of erratic speed changes in historical track."""
+    anomalies_detected: int
+    anomaly_frequency_per_hour: float
+    anomaly_severity: Literal["LOW", "MEDIUM", "HIGH"]
+    description: str
+
+class LoiterAnalysisResult(BaseModel):
+    """Component analysis of loitering behavior in historical track."""
+    loiter_events: int
+    loiter_frequency_per_hour: float
+    loiter_severity: Literal["LOW", "MEDIUM", "HIGH"]
+    description: str
+
+class DataSufficiencyInfo(BaseModel):
+    """Metadata about data availability for risk profiling."""
+    has_sufficient_data: bool
+    min_required_hours: float
+    actual_hours: float
+    waypoint_count: int
+    reason: str
+
+class VesselRiskProfile(BaseModel):
+    """
+    Behavioral risk profile computed from FULL historical AIS track.
+    
+    IMPORTANT: This is a HEURISTIC score based ONLY on AIS behavioral patterns.
+    It is NOT predictive certainty, NOT equivalent to safety inspections, and does
+    NOT indicate mechanical/hull/engine condition. Use for elevated monitoring priority only.
+    """
+    mmsi: str
+    risk_level: Literal["INSUFFICIENT_DATA", "LOW", "MEDIUM", "HIGH", "ELEVATED"]
+    risk_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    
+    historical_hours: float
+    waypoint_count: int
+    
+    data_sufficiency: DataSufficiencyInfo
+    gap_analysis: Optional[GapAnalysisResult] = None
+    speed_anomaly_analysis: Optional[SpeedAnomalyAnalysisResult] = None
+    loiter_analysis: Optional[LoiterAnalysisResult] = None
+    
+    vessel_context: Optional[Dict[str, Any]] = None  # vessel_type, age, etc.
+    risk_factors: List[str]  # Behavioral patterns that contributed to risk level
+    limitations: List[str]  # Disclaimers about data sources and interpretation
+    
+    computed_at: datetime
+    note: str = "Behavioral risk indicator for monitoring priority. Not predictive certainty."
+
 class VesselCandidate(BaseModel):
     mmsi: str
     vessel_name: str
@@ -133,6 +190,7 @@ class VesselCandidate(BaseModel):
     engine_type: Optional[str] = "MAN B&W 6S50ME-C (9,480 kW)"
     owner_operator: Optional[str] = "Global Maritime Shipping Ltd."
     
+    # Incident-specific correlation score
     overall_score: float = Field(..., ge=0.0, le=1.0)
     priority_tier: Literal["HIGH", "MEDIUM", "LOW", "UNLIKELY"]
     sub_scores: Dict[str, float]
@@ -147,6 +205,14 @@ class VesselCandidate(BaseModel):
     flagged_by_analyst: bool = False
     excluded_by_analyst: bool = False
     analyst_notes: Optional[str] = None
+    
+    # General behavioral risk profile (from full historical AIS track)
+    # This is computed separately and aggregated alongside incident correlation
+    general_risk_profile: Optional[VesselRiskProfile] = Field(
+        None,
+        description="Complementary behavioral risk profile from full historical AIS track. "
+                    "NOT incident-specific. Computed independently from incident correlation score."
+    )
 
 class AttributionWeightConfig(BaseModel):
     weight_spatial: float = 0.30
