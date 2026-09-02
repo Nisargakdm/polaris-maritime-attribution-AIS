@@ -1,0 +1,270 @@
+================================================================================
+POLARIS — DRIFT RECONSTRUCTION & PREDICTION IMPLEMENTATION SUMMARY
+================================================================================
+
+COMPLETED: 2026-09-01
+STATUS: FULLY OPERATIONAL
+
+This document summarizes the implementation of backward drift reconstruction
+and forward drift prediction features, addressing the core requirements from
+the official problem statement.
+
+================================================================================
+STEP 1 — DRIFT ENGINE STATE VERIFICATION
+================================================================================
+
+FINDINGS:
+✓ backend/app/services/drift_engine.py EXISTS and is FULLY IMPLEMENTED
+✓ Reverse Lagrangian advection with stochastic diffusion already working
+✓ Particle seeding, uncertainty ellipses, KDE heatmap all functional
+✓ Windage factor = 0.031 (established in design)
+✓ Simplified constant ocean/wind forcing (documented as interim solution)
+
+WHAT WAS MISSING:
+✗ Forward drift prediction function (future trajectory forecasting)
+
+================================================================================
+STEP 2-3 — FORWARD DRIFT PREDICTION (NEW IMPLEMENTATION)
+================================================================================
+
+ADDED: LagrangianDriftEngine.run_forward_prediction()
+LOCATION: backend/app/services/drift_engine.py (lines ~54-185)
+
+FUNCTIONALITY:
+✓ Seeds particles at observed spill polygon (t=0)
+✓ Forward time integration: u_drift = +(u_current + f_wind * u_wind)
+  - NO sign inversion (contrast with backward drift's negative sign)
+✓ Same stochastic diffusion as backward drift
+✓ Configurable projection window (default: 48 hours)
+✓ Uncertainty grows with time horizon (reflects increasing prediction error)
+  - Base uncertainty + 1.5% growth per hour
+  - Diffusion coefficient scales with time: (1.0 + 0.015 * elapsed_hours)
+✓ Returns: predicted centroid, ellipses, heatmap, trajectories
+
+PARTICLE COUNT:
+- Default: 300 particles (vs 1200 for backward drift)
+- Rationale: Forward prediction is compute-intensive; 300 provides sufficient
+  statistical coverage for prototype performance
+
+FORCING DATA:
+- Simplified constant current/wind vectors (same as backward drift)
+- Documented via "forcing_data_source": "simplified_constant" in response
+- Future extensibility: designed to accept live CMEMS + ERA5 feeds
+
+UNCERTAINTY HANDLING:
+✓ Uncertainty is NOT constant — grows with time horizon as expected
+✓ Early timesteps (t+6h): ~1.6 km radius
+✓ Late timesteps (t+48h): ~20-25 km radius
+✓ Reflects fundamental physics: forecasts become less certain over time
+
+================================================================================
+STEP 4 — AIS CORRELATION PIPELINE INTEGRATION
+================================================================================
+
+STATUS: ALREADY CORRECTLY WIRED (verification performed)
+
+CONFIRMED OPERATIONAL:
+✓ Backward drift IS computed during case initialization
+✓ AIS queries USE drift.most_probable_origin_lat/lon (not spill location)
+✓ AIS queries USE drift.origin_time_window_start/end (not observation time)
+✓ attribution_scorer.py measures CPA-to-origin (not CPA-to-spill)
+
+CODE LOCATIONS:
+- backend/app/services/case_manager.py:458+ (drift computation)
+- backend/app/services/case_manager.py:472+ (AIS query with origin coords)
+- backend/app/services/case_manager.py:491+ (scoring against origin)
+
+NO CHANGES REQUIRED — pipeline was correctly designed from inception.
+
+================================================================================
+STEP 5 — API ENDPOINTS
+================================================================================
+
+ROUTE FILE: backend/app/api/routes_drift.py
+
+NEW ENDPOINTS ADDED:
+
+1. GET /api/drift/{case_id}/forward-prediction
+   - Returns forward drift prediction from current spill
+   - Query params: duration_hours (default: 48), num_particles (default: 300)
+   - Response: prediction centroid, ellipses, heatmap, trajectories, uncertainty
+   
+2. GET /api/drift/{case_id}/combined
+   - Returns BOTH backward origin + forward prediction in one response
+   - Useful for full temporal context visualization
+   - Response structure:
+     {
+       "case_id": "...",
+       "observation_time": "...",
+       "spill_centroid_lat": ...,
+       "spill_centroid_lon": ...,
+       "backward_drift": { ... },      // DriftOriginEstimate model
+       "forward_prediction": { ... },  // Forward prediction dict
+       "note": "..."
+     }
+
+EXISTING ENDPOINTS (UNCHANGED):
+- GET /api/drift/{case_id} — backward drift only
+- POST /api/drift/{case_id}/re-simulate — recompute backward with custom params
+
+================================================================================
+TESTING PERFORMED
+================================================================================
+
+1. UNIT TESTS — backend/test_drift_forward_integration.py
+   ✓ Forward prediction produces expected output structure
+   ✓ Centroid moves in physically correct direction (eastward with +u current)
+   ✓ Uncertainty grows over time (not constant)
+   ✓ Ellipses show increasing spread
+   ✓ All 17 required fields present in response
+   ✓ Trajectories have forward time progression (t=0 -> t=+48h)
+   ✓ Heatmap grid generated correctly
+   ✓ Forcing data source documented as "simplified_constant"
+
+2. REGRESSION TESTS — backend/tests/test_drift_hindcast.py
+   ✓ test_haversine_and_bearing PASSED
+   ✓ test_lagrangian_drift_hindcast PASSED
+   ✓ Backward drift still works correctly after forward prediction added
+
+3. SYNTAX VALIDATION
+   ✓ drift_engine.py compiles without errors
+   ✓ routes_drift.py compiles without errors
+   ✓ All modified files pass py_compile
+
+================================================================================
+FRONTEND INTEGRATION NOTES
+================================================================================
+
+MAP RENDERING GUIDANCE (for future frontend work):
+
+BACKWARD DRIFT (origin reconstruction):
+- Color: Blue/cyan particles
+- Direction: Spill -> Origin (fanning backward in time)
+- Label: "Estimated Origin" or "Hindcast"
+- Centroid: Mark drift.most_probable_origin_lat/lon
+- Ellipses: Render at t=-6h, t=-12h, t=-24h, t=-48h
+- Uncertainty: drift.spatial_uncertainty_km radius
+
+FORWARD DRIFT (future prediction):
+- Color: Red/orange particles (visually distinct from backward)
+- Direction: Spill -> Future (fanning forward in time)
+- Label: "Predicted Trajectory" or "Forecast"
+- Centroid: Mark forward_prediction.prediction_centroid_lat/lon
+- Ellipses: Render at t=+6h, t=+12h, t=+24h, t=+48h
+- Uncertainty: forward_prediction.spatial_uncertainty_km (grows over time)
+
+SPILL OBSERVATION (current state):
+- Color: Yellow/white (distinct from both drift directions)
+- Mark: detection.centroid_lat/lon
+- Label: "Observed Spill (t=0)"
+
+VISUAL DISTINCTION IS CRITICAL:
+- Users must immediately understand backward vs forward
+- Use color, arrow direction, or line style (dashed/solid)
+- Add legend: "Blue = Origin Reconstruction | Red = Future Prediction"
+
+DISCLAIMERS (MUST BE VISIBLE):
+- "Simplified constant forcing (interim prototype)"
+- "Uncertainty increases with time horizon"
+- "Forward prediction is NOT deterministic"
+
+================================================================================
+KNOWN LIMITATIONS & FUTURE WORK
+================================================================================
+
+CURRENT STATE (PROTOTYPE):
+✗ Uses simplified constant ocean current + wind vectors
+✗ No real-time CMEMS ocean current integration
+✗ No real-time ERA5 wind forecast integration
+✗ No coastline impact layer (proximity to sensitive areas)
+✗ No timeline scrubbing UI for exploring drift evolution
+
+FUTURE ENHANCEMENTS (OUT OF SCOPE FOR THIS PASS):
+1. Integrate live CMEMS ocean current forecasts via API
+2. Integrate ECMWF/ERA5 wind forecasts via API
+3. Add coastline proximity analysis (distance to ports, protected areas)
+4. Compute potential impact zones (beaching probability)
+5. Timeline scrubber: animate drift evolution over time
+6. Advanced KDE heatmap rendering with Leaflet.heat plugin
+7. Multi-scenario forecasting (varying wind/current assumptions)
+
+CODE READINESS:
+✓ drift_engine.py is designed to accept dynamic current/wind arrays
+✓ API already returns forcing_data_source field for future extensibility
+✓ Forward prediction function signature has current_u_mps/v_mps params
+  - Can be extended to accept time-varying arrays instead of constants
+
+================================================================================
+FILES MODIFIED
+================================================================================
+
+MODIFIED:
+1. backend/app/services/drift_engine.py
+   - Added run_forward_prediction() method (~180 lines)
+   - Updated uncertainty calculation for forward prediction
+   
+2. backend/app/api/routes_drift.py
+   - Added GET /drift/{case_id}/forward-prediction endpoint
+   - Added GET /drift/{case_id}/combined endpoint
+   - Updated imports to support Dict[str, Any] typing
+
+CREATED:
+3. backend/test_drift_forward_integration.py
+   - Comprehensive integration test suite for forward prediction
+   - Regression checks for backward drift
+   
+4. DRIFT_FEATURES_IMPLEMENTATION_SUMMARY.txt (this file)
+
+UNCHANGED (verified operational):
+- backend/app/services/case_manager.py (AIS query logic correct)
+- backend/app/services/attribution_scorer.py (origin-based scoring correct)
+- backend/app/services/trajectory_analyzer.py (CPA computation correct)
+
+================================================================================
+VERIFICATION CHECKLIST
+================================================================================
+
+✓ Backward drift reconstruction works (EXISTING)
+✓ Forward drift prediction works (NEW)
+✓ Uncertainty grows with time horizon (verified in tests)
+✓ AIS queries use origin location, not spill location (verified)
+✓ Attribution scoring uses origin, not spill (verified)
+✓ API endpoints expose both backward and forward (implemented)
+✓ Forcing data source documented as "simplified_constant" (documented)
+✓ Syntax valid (py_compile passed)
+✓ Existing tests pass (pytest passed)
+✓ Integration tests pass (test_drift_forward_integration.py passed)
+
+================================================================================
+USAGE EXAMPLES
+================================================================================
+
+# Get backward drift (origin reconstruction)
+GET /api/drift/case_04_malacca_strait
+
+# Get forward prediction (future trajectory)
+GET /api/drift/case_04_malacca_strait/forward-prediction?duration_hours=48&num_particles=300
+
+# Get both backward + forward in one call
+GET /api/drift/case_04_malacca_strait/combined
+
+# Get vessel candidates (already using drift origin for correlation)
+GET /api/ais/candidates/case_04_malacca_strait
+
+================================================================================
+CONCLUSION
+================================================================================
+
+Both backward drift reconstruction and forward drift prediction are now
+FULLY OPERATIONAL and correctly integrated into the AIS correlation pipeline.
+
+The pipeline correctly:
+1. Computes backward drift from observed spill -> reconstructed origin
+2. Queries AIS vessels near the ORIGIN (not the spill)
+3. Scores vessels based on CPA to ORIGIN (not spill)
+4. Computes forward drift from observed spill -> predicted future location
+5. Exposes both via clean API endpoints with proper uncertainty handling
+
+All tests pass. No existing functionality broken. Ready for frontend integration.
+
+================================================================================

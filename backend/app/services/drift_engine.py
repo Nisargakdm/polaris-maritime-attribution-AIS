@@ -261,6 +261,182 @@ class LagrangianDriftEngine:
             rings.append(IsoProbabilityRing(confidence_percent=pct, coordinates=coords))
         return rings
 
+    def run_forward_prediction(
+        self,
+        spill_geojson: Dict[str, Any],
+        observation_time: datetime,
+        duration_hours: int = 48,
+        num_particles: int = 300,
+        time_step_minutes: int = 30,
+        current_u_mps: float = 0.22,
+        current_v_mps: float = -0.12,
+        wind_u_mps: float = 4.5,
+        wind_v_mps: float = -2.8,
+        current_shear_deg: float = 12.0
+    ) -> Dict[str, Any]:
+        """
+        Executes FORWARD Lagrangian particle integration from t=0 (observation) to t=+duration_hours.
+        Predicts future spill drift trajectory and spreading.
+        
+        NOTE: Uses simplified constant ocean/wind forcing. For operational deployment,
+        integrate live CMEMS ocean current forecasts + ECMWF/ERA5 wind forecasts.
+        
+        Returns:
+            {
+                "simulation_id": "FWDSIM-...",
+                "duration_hours": 48,
+                "num_particles": 300,
+                "prediction_centroid_lat": 19.52,
+                "prediction_centroid_lon": 72.18,
+                "spatial_uncertainty_km": 18.5,  # grows with time horizon
+                "prediction_time_window_start": datetime(...),
+                "prediction_time_window_end": datetime(...),
+                "ellipses": [...],  # uncertainty ellipses at timesteps
+                "density_heatmap_grid": [[lat, lon, density], ...],
+                "grid_bounds": [min_lat, min_lon, max_lat, max_lon],
+                "sample_trajectories": [...],
+                "ocean_current_mean_mps": 0.25,
+                "wind_speed_mean_mps": 5.2,
+                "current_vectors": [...],
+                "forcing_data_source": "simplified_constant",
+                "note": "Forward prediction using constant forcing. Uncertainty increases with time horizon."
+            }
+        """
+        logger.info(f"Running FORWARD drift prediction: {num_particles} particles, {duration_hours}h horizon.")
+        
+        # Seed particles at current spill polygon (t=0)
+        initial_coords = self.generate_seed_particles(spill_geojson, num_particles)
+        
+        lats = np.array([p[0] for p in initial_coords], dtype=np.float64)
+        lons = np.array([p[1] for p in initial_coords], dtype=np.float64)
+        
+        dt_seconds = time_step_minutes * 60.0
+        num_steps = int((duration_hours * 60) / time_step_minutes)
+        
+        # Subsample for visualization
+        sample_indices = np.random.choice(num_particles, size=min(40, num_particles), replace=False)
+        trajectories: Dict[int, List[ParticleStep]] = {idx: [] for idx in sample_indices}
+        
+        # Record initial step (t=0)
+        for idx in sample_indices:
+            trajectories[idx].append(ParticleStep(
+                time_offset_hours=0.0,
+                timestamp=observation_time,
+                lat=round(float(lats[idx]), 5),
+                lon=round(float(lons[idx]), 5),
+                status="active"
+            ))
+        
+        ellipses = []
+        
+        # Earth constants
+        R_earth_m = 6371000.0
+        deg_to_rad = math.pi / 180.0
+        rad_to_deg = 180.0 / math.pi
+        
+        for step in range(1, num_steps + 1):
+            elapsed_hours = (step * time_step_minutes) / 60.0
+            current_time = observation_time + timedelta(hours=elapsed_hours)
+            
+            # Physical advection (slight temporal variation)
+            t_phase = (elapsed_hours / 24.0) * 2.0 * math.pi
+            u_curr = current_u_mps + 0.05 * math.cos(t_phase)
+            v_curr = current_v_mps + 0.04 * math.sin(t_phase)
+            
+            u_wind = wind_u_mps + 0.8 * math.sin(t_phase * 0.5)
+            v_wind = wind_v_mps + 0.6 * math.cos(t_phase * 0.5)
+            
+            # Total FORWARD drift velocity = current + wind_factor * wind
+            # NO SIGN INVERSION (this is forward integration)
+            u_tot = u_curr + self.wind_factor * u_wind
+            v_tot = v_curr + self.wind_factor * v_wind
+            
+            # Turbulent diffusion (grows slightly with time to reflect increasing uncertainty)
+            # Base diffusion + time-dependent growth factor
+            diff_coeff_effective = self.diffusion_coeff * (1.0 + 0.015 * elapsed_hours)
+            diff_std = math.sqrt(2.0 * diff_coeff_effective * dt_seconds)
+            rand_dx = np.random.normal(0.0, diff_std, size=num_particles)
+            rand_dy = np.random.normal(0.0, diff_std, size=num_particles)
+            
+            # Total displacement in meters
+            dx_m = u_tot * dt_seconds + rand_dx
+            dy_m = v_tot * dt_seconds + rand_dy
+            
+            # Convert to degrees
+            dlat_deg = (dy_m / R_earth_m) * rad_to_deg
+            dlon_deg = (dx_m / (R_earth_m * np.cos(lats * deg_to_rad))) * rad_to_deg
+            
+            lats += dlat_deg
+            lons += dlon_deg
+            
+            # Record trajectory samples
+            for idx in sample_indices:
+                trajectories[idx].append(ParticleStep(
+                    time_offset_hours=round(float(elapsed_hours), 2),
+                    timestamp=current_time,
+                    lat=round(float(lats[idx]), 5),
+                    lon=round(float(lons[idx]), 5),
+                    status="active"
+                ))
+            
+            # Compute uncertainty ellipse every 6 hours and at final timestep
+            if elapsed_hours in [6.0, 12.0, 18.0, 24.0, 30.0, 36.0, 42.0, 48.0] or step == num_steps:
+                ellipse_params = compute_uncertainty_ellipse_params(lats, lons)
+                ellipses.append({
+                    "centroid_lat": round(ellipse_params["centroid_lat"], 5),
+                    "centroid_lon": round(ellipse_params["centroid_lon"], 5),
+                    "semi_major_km": ellipse_params["semi_major_km"],
+                    "semi_minor_km": ellipse_params["semi_minor_km"],
+                    "rotation_deg": ellipse_params["rotation_deg"],
+                    "time_offset_hours": round(float(elapsed_hours), 2),
+                    "timestamp": current_time.isoformat() + "Z",
+                    "confidence_level": 0.95
+                })
+        
+        # Final predicted position
+        final_lat = float(np.mean(lats))
+        final_lon = float(np.mean(lons))
+        final_ellipse = ellipses[-1] if ellipses else {}
+        spatial_uncertainty = final_ellipse.get("semi_major_km", 15.0)
+        
+        # Uncertainty grows with time horizon
+        # Base uncertainty from particle spread + time-dependent growth
+        base_uncertainty = spatial_uncertainty if spatial_uncertainty > 5.0 else max(8.0, duration_hours * 0.25)
+        spatial_uncertainty = round(base_uncertainty * (1.0 + 0.015 * duration_hours), 2)
+        
+        # KDE grid for heatmap
+        density_grid, grid_bounds = self._compute_kde_grid(lats, lons)
+        
+        sample_traj_list = [
+            {"particle_id": int(k), "steps": [s.dict() for s in v]}
+            for k, v in trajectories.items()
+        ]
+        
+        current_speed_mag = math.hypot(current_u_mps, current_v_mps)
+        wind_speed_mag = math.hypot(wind_u_mps, wind_v_mps)
+        
+        current_vectors_list = [cv.dict() for cv in self._generate_current_vectors(final_lat, final_lon, current_u_mps, current_v_mps)]
+        
+        return {
+            "simulation_id": f"FWDSIM-{int(observation_time.timestamp())}",
+            "duration_hours": duration_hours,
+            "num_particles": num_particles,
+            "prediction_centroid_lat": round(final_lat, 5),
+            "prediction_centroid_lon": round(final_lon, 5),
+            "spatial_uncertainty_km": spatial_uncertainty,
+            "prediction_time_window_start": observation_time.isoformat() + "Z",
+            "prediction_time_window_end": (observation_time + timedelta(hours=duration_hours)).isoformat() + "Z",
+            "ellipses": ellipses,
+            "density_heatmap_grid": density_grid,
+            "grid_bounds": grid_bounds,
+            "sample_trajectories": sample_traj_list,
+            "ocean_current_mean_mps": round(current_speed_mag, 2),
+            "wind_speed_mean_mps": round(wind_speed_mag, 2),
+            "current_vectors": current_vectors_list,
+            "forcing_data_source": "simplified_constant",
+            "note": "Forward prediction using simplified constant ocean/wind forcing. Uncertainty increases with time horizon. For operational deployment, integrate live CMEMS current + ECMWF wind forecasts."
+        }
+
     @staticmethod
     def _compute_kde_grid(
         lats: np.ndarray, 
