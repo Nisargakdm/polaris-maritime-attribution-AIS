@@ -3,7 +3,7 @@ Bug-fix verification script for POLARIS dashboard.
 Run from project root with server already running on port 8765.
 """
 import urllib.request, json, sys
-BASE = "http://127.0.0.1:8765"
+BASE = "http://127.0.0.1:8000"
 errors = []
 
 def ok(label): print(f"  OK   {label}")

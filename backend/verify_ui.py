@@ -7,7 +7,7 @@ import urllib.request
 import json
 import sys
 
-BASE = "http://127.0.0.1:8765"
+BASE = "http://127.0.0.1:8000"
 errors = []
 
 
