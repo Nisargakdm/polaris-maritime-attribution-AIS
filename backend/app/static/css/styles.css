@@ -1,8 +1,73 @@
 /* POLARIS Maritime GIS Dashboard Styles */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap");
 
+/* ── Viewport lock: the whole app must never scroll at the page level ──────── */
+html, body {
+    height: 100%;
+    overflow: hidden;
+}
+
 body {
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    /* Bug 6: bump base font size — Tailwind text-xs = 12px, but we want 13px as the
+       practical floor so data rows (text-[11px]/text-[10px]) render at 12/11px respectively */
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Bug 6: floor small utility text sizes that Tailwind would otherwise set too small */
+.text-xs   { font-size: 12px !important; }
+.text-\[10px\] { font-size: 11px !important; }
+.text-\[9px\]  { font-size: 10px !important; }
+/* Leave text-[11px], text-sm and above unchanged */
+
+/* The flex column that holds header + disclaimer + content row */
+#app-root {
+    flex: 1 1 0;          /* grow to fill body, shrink if needed */
+    min-height: 0;        /* critical: lets flex children shrink below content size */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* The three-column content row (left sidebar + map + right sidebar) */
+#content-row {
+    flex: 1 1 0;
+    min-height: 0;        /* allows children to scroll independently */
+    display: flex;
+    overflow: hidden;
+}
+
+/* Both sidebars must be height-constrained so overflow-y:auto actually works.
+   The flex-col on the aside means children stack; min-height:0 lets the aside
+   shrink to fit the content-row, after which overflow-y:auto provides the scroll. */
+#sidebar-left,
+#sidebar-right {
+    min-height: 0;
+    overflow-y: auto;   /* Bug 2/3: ensure scroll is always active */
+    overflow-x: hidden;
+}
+
+/* Bug 2/3: the custom-scroll scrollbar styling must also appear on the sidebars.
+   The class is already on the asides in HTML, so this just ensures the webkit
+   scrollbar rules apply even when overflow comes from the CSS id rule above. */
+#sidebar-left::-webkit-scrollbar,
+#sidebar-right::-webkit-scrollbar {
+    width: 5px;
+}
+#sidebar-left::-webkit-scrollbar-track,
+#sidebar-right::-webkit-scrollbar-track {
+    background: #0b1329;
+}
+#sidebar-left::-webkit-scrollbar-thumb,
+#sidebar-right::-webkit-scrollbar-thumb {
+    background: #1e2e4f;
+    border-radius: 3px;
+}
+#sidebar-left::-webkit-scrollbar-thumb:hover,
+#sidebar-right::-webkit-scrollbar-thumb:hover {
+    background: #0ea5e9;
 }
 
 code, pre, .font-mono {
@@ -98,3 +163,161 @@ code, pre, .font-mono {
 .map-dark-tiles {
     filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(90%);
 }
+
+/* ── Panel info tooltip ────────────────────────────────────────────────────── */
+.panel-info {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: help;
+    color: #475569;       /* slate-600 */
+    flex-shrink: 0;
+}
+
+.panel-info:hover {
+    color: #38bdf8;       /* cyan-400 */
+}
+
+.panel-info::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0f172a;
+    color: #cbd5e1;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 6px 9px;
+    font-size: 10px;
+    line-height: 1.5;
+    white-space: nowrap;
+    max-width: 260px;
+    white-space: normal;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 9999;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    font-family: "Inter", sans-serif;
+    font-weight: 400;
+}
+
+.panel-info:hover::after {
+    opacity: 1;
+}
+
+/* Prevent tooltip clipping inside sidebars */
+#sidebar-left  .panel-info::after { left: 0; transform: none; }
+#sidebar-right .panel-info::after { left: auto; right: 0; transform: none; }
+
+/* ── Risk indicator badges ─────────────────────────────────────────────────── */
+.risk-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 1px 6px;
+    border-radius: 999px;
+    border-width: 1px;
+    border-style: solid;
+}
+.risk-LOW      { background: rgba(16,185,129,0.12); color: #34d399; border-color: rgba(52,211,153,0.3); }
+.risk-MEDIUM   { background: rgba(245,158,11,0.12); color: #fbbf24; border-color: rgba(251,191,36,0.3); }
+.risk-HIGH     { background: rgba(239,68,68,0.15);  color: #f87171; border-color: rgba(248,113,113,0.35); }
+.risk-ELEVATED { background: rgba(168,85,247,0.15); color: #c084fc; border-color: rgba(192,132,252,0.35); }
+.risk-INSUFFICIENT_DATA,
+.risk-UNKNOWN  { background: rgba(71,85,105,0.2);   color: #94a3b8; border-color: rgba(100,116,139,0.3); }
+
+/* ── Simulation mode badge ─────────────────────────────────────────────────── */
+#sim-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(245,158,11,0.12);
+    color: #f59e0b;
+    border: 1px solid rgba(245,158,11,0.35);
+}
+
+/* ── Section panel headers ─────────────────────────────────────────────────── */
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #94a3b8;       /* slate-400 */
+    margin-bottom: 6px;
+}
+
+.panel-header .panel-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #e2e8f0;       /* slate-200 */
+}
+
+.panel-header .panel-title svg,
+.panel-header .panel-title [data-lucide] {
+    color: #22d3ee;       /* cyan-400 */
+    flex-shrink: 0;
+}
+
+/* ── Contour / current vector tooltip label ────────────────────────────────── */
+.contour-label {
+    background: #0f172a !important;
+    color: #e2e8f0 !important;
+    border: 1px solid #334155 !important;
+    border-radius: 4px !important;
+    font-size: 10px !important;
+    padding: 2px 6px !important;
+    box-shadow: none !important;
+}
+
+/* ── Flash animation on weight recompute ───────────────────────────────────── */
+@keyframes flash-update {
+    0%   { background-color: rgba(6,182,212,0.25); }
+    100% { background-color: transparent; }
+}
+.flash-update { animation: flash-update 1.5s ease-out forwards; }
+
+/* ── Bug 1 fix: modal show/hide ─────────────────────────────────────────────
+   Tailwind CDN generates `hidden { display:none }` and `flex { display:flex }`.
+   When both classes are present (as in the initial HTML), `hidden` wins because
+   it is defined later in the generated sheet. We fix this by using a data-open
+   attribute instead of relying on classList to toggle `hidden` against `flex`.
+   The JS openXxxModal / closeXxxModal functions set/remove data-open="true".    */
+.polaris-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: rgba(5, 10, 23, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 50;
+}
+.polaris-modal[data-open="true"] {
+    display: flex;
+}
+
+/* ── Bug 4 fix: map forensic-layers overlay must not overflow on short screens  */
+#map-layer-panel {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+#map-layer-panel::-webkit-scrollbar { width: 3px; }
+#map-layer-panel::-webkit-scrollbar-track { background: transparent; }
+#map-layer-panel::-webkit-scrollbar-thumb { background: #1e2e4f; border-radius: 3px; }

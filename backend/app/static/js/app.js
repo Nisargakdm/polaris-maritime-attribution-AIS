@@ -409,6 +409,15 @@ function renderCandidateList() {
                 ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
                 : "bg-slate-700 text-slate-400 border-slate-600";
 
+        // Risk badge for this vessel (from general_risk_profile if available)
+        const rp = cand.general_risk_profile;
+        const riskLevel = (rp && rp.risk_level) ? rp.risk_level : "UNKNOWN";
+        const riskLabel = {
+            "LOW": "Low Risk", "MEDIUM": "Med Risk", "HIGH": "High Risk",
+            "ELEVATED": "Elevated", "INSUFFICIENT_DATA": "No History", "UNKNOWN": "—"
+        }[riskLevel] || "—";
+        const riskBadgeHtml = `<span class="risk-badge risk-${riskLevel}" title="General behavioral risk indicator from historical AIS patterns (not incident-specific). ${rp ? rp.note : ''}">${riskLabel}</span>`;
+
         card.innerHTML = `
             <div class="flex items-center space-x-2.5 min-w-0">
                 <span class="font-mono text-slate-400 text-[10px] font-bold">#${rankNumber}</span>
@@ -420,8 +429,9 @@ function renderCandidateList() {
                     <div class="text-[10px] text-slate-400 font-mono">MMSI ${cand.mmsi} &bull; ${cand.vessel_type}</div>
                 </div>
             </div>
-            <div class="flex items-center space-x-2 shrink-0">
+            <div class="flex flex-col items-end space-y-1 shrink-0">
                 <span class="px-2 py-0.5 rounded text-[10px] font-bold border font-mono ${scoreBadgeClass}">${scorePercent}%</span>
+                ${riskBadgeHtml}
             </div>
         `;
         card.addEventListener("click", () => selectCandidate(cand.mmsi));
@@ -457,6 +467,50 @@ function renderCandidateDetail() {
     document.getElementById("detail-vessel-type").innerText = cand.vessel_type;
     document.getElementById("detail-flag").innerText = cand.flag_country;
     document.getElementById("detail-cpa").innerText = `${cand.closest_approach_km} km (${new Date(cand.time_of_closest_approach).toUTCString().substring(17, 22)} UTC)`;
+
+    // Dual score row — overall incident correlation
+    const overallPct = Math.round((cand.overall_score || 0) * 100);
+    const overallEl = document.getElementById("detail-overall-score");
+    if (overallEl) {
+        overallEl.innerText = `${overallPct}%`;
+        overallEl.className = `font-mono font-black text-xl transition-colors ${
+            overallPct >= 70 ? "text-red-400" : overallPct >= 50 ? "text-amber-400" : "text-slate-300"
+        }`;
+    }
+
+    // General risk profile badge slot
+    const rp = cand.general_risk_profile;
+    const riskSlot = document.getElementById("detail-risk-badge-slot");
+    const riskBreakdown = document.getElementById("detail-risk-breakdown");
+    if (riskSlot) {
+        const riskLevel = (rp && rp.risk_level) ? rp.risk_level : "UNKNOWN";
+        const riskLabel = {
+            "LOW": "Low Risk", "MEDIUM": "Medium Risk", "HIGH": "High Risk",
+            "ELEVATED": "Elevated Risk", "INSUFFICIENT_DATA": "Insufficient History", "UNKNOWN": "—"
+        }[riskLevel] || "—";
+        riskSlot.innerHTML = `<span class="risk-badge risk-${riskLevel}">${riskLabel}</span>`;
+    }
+
+    // Risk breakdown panel
+    if (rp && rp.data_sufficiency && rp.data_sufficiency.has_sufficient_data && riskBreakdown) {
+        riskBreakdown.classList.remove("hidden");
+        const gapEl    = document.getElementById("risk-gap-val");
+        const speedEl  = document.getElementById("risk-speed-val");
+        const loiterEl = document.getElementById("risk-loiter-val");
+        const hoursEl  = document.getElementById("risk-hours-val");
+        const factorsEl = document.getElementById("risk-factors-list");
+        if (gapEl    && rp.gap_analysis)           gapEl.innerText    = `${rp.gap_analysis.gap_severity} (${rp.gap_analysis.total_gaps_detected} gaps)`;
+        if (speedEl  && rp.speed_anomaly_analysis) speedEl.innerText  = `${rp.speed_anomaly_analysis.anomaly_severity} (${rp.speed_anomaly_analysis.anomalies_detected})`;
+        if (loiterEl && rp.loiter_analysis)        loiterEl.innerText = `${rp.loiter_analysis.loiter_severity} (${rp.loiter_analysis.loiter_events} pts)`;
+        if (hoursEl)  hoursEl.innerText = `${(rp.historical_hours || 0).toFixed(0)} h tracked`;
+        if (factorsEl) {
+            factorsEl.innerHTML = (rp.risk_factors || [])
+                .map(f => `<div class="flex items-start gap-1"><span class="text-amber-400 shrink-0">•</span><span>${f}</span></div>`)
+                .join("");
+        }
+    } else if (riskBreakdown) {
+        riskBreakdown.classList.add("hidden");
+    }
 
     // Maritime Specifications
     document.getElementById("detail-length").innerText = `${cand.length_m || 182} m`;
@@ -646,21 +700,22 @@ function setupEventListeners() {
     document.getElementById("btn-speed-2x").addEventListener("click", () => setSpeed(2));
 
     // Scoring Weights Modal
-    const openWeightsModal = () => document.getElementById("modal-weights").classList.remove("hidden");
+    const openWeightsModal  = () => document.getElementById("modal-weights").setAttribute("data-open", "true");
+    const closeWeightsModal = () => document.getElementById("modal-weights").removeAttribute("data-open");
     document.getElementById("btn-open-weights").addEventListener("click", openWeightsModal);
     document.getElementById("btn-quick-weights").addEventListener("click", openWeightsModal);
-    document.getElementById("btn-close-weights").addEventListener("click", () => document.getElementById("modal-weights").classList.add("hidden"));
+    document.getElementById("btn-close-weights").addEventListener("click", closeWeightsModal);
     setupWeightSliders();
     document.getElementById("btn-apply-weights").addEventListener("click", applyWeightRecomputation);
     document.getElementById("btn-reset-weights").addEventListener("click", resetWeightSliders);
 
     // Evidence Graph Modal
     document.getElementById("btn-open-graph").addEventListener("click", openGraphModal);
-    document.getElementById("btn-close-graph").addEventListener("click", () => document.getElementById("modal-graph").classList.add("hidden"));
+    document.getElementById("btn-close-graph").addEventListener("click", () => document.getElementById("modal-graph").removeAttribute("data-open"));
 
     // Report Modal
     document.getElementById("btn-open-report").addEventListener("click", openReportModal);
-    document.getElementById("btn-close-report").addEventListener("click", () => document.getElementById("modal-report").classList.add("hidden"));
+    document.getElementById("btn-close-report").addEventListener("click", () => document.getElementById("modal-report").removeAttribute("data-open"));
     document.getElementById("btn-copy-markdown").addEventListener("click", copyReportMarkdown);
 
     // Analyst Actions
@@ -746,7 +801,7 @@ async function applyWeightRecomputation() {
         renderCandidateDetail();
         renderVesselLayers();
         updateActiveWeightsUI();
-        document.getElementById("modal-weights").classList.add("hidden");
+        document.getElementById("modal-weights").removeAttribute("data-open");
         
         // Flash update on cards
         candidatesData.forEach(c => {
@@ -775,26 +830,86 @@ function resetWeightSliders() {
 }
 
 async function openGraphModal() {
+    const container = document.getElementById("graph-content-body");
+    container.innerHTML = `<div class="text-slate-400 text-xs p-2">Loading evidence graph...</div>`;
+    document.getElementById("modal-graph").setAttribute("data-open", "true");
+
     try {
-        const res = await fetch(`/api/report/${currentCaseId}`).then(r => r.json());
-        const g = res.evidence_graph || { nodes: [], edges: [] };
-        const container = document.getElementById("graph-content-body");
-        container.innerHTML = `
-            <div class="p-3 bg-navy-850 rounded-lg border border-navy-700/60 text-slate-300">
-                <div class="font-bold text-cyan-400 mb-2">Network Nodes (${g.nodes.length})</div>
-                <div class="grid grid-cols-2 gap-2 mb-4">
-                    ${g.nodes.map(n => `<div class="p-2 bg-navy-900 rounded border border-navy-700"><span class="text-[10px] text-cyan-300 block font-bold">[${n.node_type}]</span>${n.label}</div>`).join("")}
+        const g = await fetch(`/api/cases/${currentCaseId}/evidence-graph`).then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+        });
+
+        // Group nodes by type for readable display
+        const nodeTypeOrder = ["SATELLITE", "SPILL", "DRIFT", "ORIGIN", "VESSEL", "ANOMALY"];
+        const byType = {};
+        for (const t of nodeTypeOrder) byType[t] = [];
+        for (const n of (g.nodes || [])) {
+            const bucket = byType[n.node_type] ?? (byType[n.node_type] = []);
+            bucket.push(n);
+        }
+
+        const typeColors = {
+            SATELLITE: "text-sky-400",
+            SPILL:     "text-red-400",
+            DRIFT:     "text-cyan-400",
+            ORIGIN:    "text-amber-400",
+            VESSEL:    "text-emerald-400",
+            ANOMALY:   "text-orange-400",
+        };
+
+        let nodesHtml = "";
+        for (const t of nodeTypeOrder) {
+            const group = byType[t] || [];
+            if (!group.length) continue;
+            nodesHtml += `<div class="mb-3">
+                <div class="text-[10px] font-bold uppercase tracking-wider ${typeColors[t] || "text-slate-400"} mb-1.5">${t} (${group.length})</div>
+                <div class="grid grid-cols-2 gap-1.5">
+                    ${group.map(n => `
+                        <div class="p-2 bg-navy-900 rounded border border-navy-700/60 space-y-0.5">
+                            <div class="font-semibold text-slate-200 text-[11px] leading-snug">${n.label}</div>
+                            ${Object.entries(n.properties || {}).map(([k, v]) =>
+                                `<div class="text-[10px] text-slate-500 font-mono truncate">${k}: <span class="text-slate-400">${String(v).substring(0, 40)}</span></div>`
+                            ).join("")}
+                        </div>`).join("")}
                 </div>
-                <div class="font-bold text-amber-400 mb-2">Evidentiary Linkages (${g.edges.length})</div>
-                <div class="space-y-1">
-                    ${g.edges.map(e => `<div class="p-1.5 bg-navy-900 rounded border border-navy-700 flex justify-between font-mono text-[11px]"><span>${e.source} &rarr; ${e.target}</span><span class="text-emerald-400 font-bold">${Math.round(e.confidence * 100)}%</span></div>`).join("")}
+            </div>`;
+        }
+
+        const edgesHtml = (g.edges || []).map(e => {
+            const confPct = Math.round((e.confidence || 0) * 100);
+            const confColor = confPct >= 85 ? "text-emerald-400" : confPct >= 60 ? "text-amber-400" : "text-slate-400";
+            return `<div class="flex items-start justify-between gap-2 p-1.5 bg-navy-900 rounded border border-navy-700/50">
+                <span class="font-mono text-[10px] text-slate-300 min-w-0 leading-relaxed">
+                    <span class="text-cyan-400">${e.source}</span>
+                    <span class="text-slate-500 mx-1">→</span>
+                    <span class="text-amber-300">${e.target}</span>
+                    <span class="block text-[9px] text-slate-500 mt-0.5">${e.relation}</span>
+                </span>
+                <span class="shrink-0 font-bold font-mono text-[11px] ${confColor}">${confPct}%</span>
+            </div>`;
+        }).join("");
+
+        container.innerHTML = `
+            <div class="space-y-4 text-xs">
+                <div>
+                    <div class="panel-header mb-2">
+                        <span class="panel-title"><i data-lucide="circle-dot" class="w-3.5 h-3.5"></i>Evidence Nodes (${(g.nodes||[]).length})</span>
+                    </div>
+                    ${nodesHtml || '<p class="text-slate-500 text-[10px]">No nodes.</p>'}
+                </div>
+                <div>
+                    <div class="panel-header mb-2">
+                        <span class="panel-title"><i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>Evidentiary Linkages (${(g.edges||[]).length})</span>
+                    </div>
+                    <div class="space-y-1">${edgesHtml || '<p class="text-slate-500 text-[10px]">No edges.</p>'}</div>
                 </div>
             </div>
         `;
-        document.getElementById("modal-graph").classList.remove("hidden");
+        if (window.lucide) lucide.createIcons();
     } catch (err) {
-        console.error("Error loading graph:", err);
-        showToast("Error loading evidence graph");
+        console.error("Evidence graph load failed:", err);
+        container.innerHTML = `<div class="text-red-400 text-xs p-2">Failed to load evidence graph: ${err.message}</div>`;
     }
 }
 
@@ -807,7 +922,7 @@ async function openReportModal() {
         document.getElementById("modal-report-hash").innerText = `SHA-256: ${jsonRes.provenance_hash_sha256}`;
         document.getElementById("provenance-hash-display").innerText = `SHA-256: ${jsonRes.provenance_hash_sha256.substring(0, 16)}...`;
         document.getElementById("report-content-body").innerText = mdRes;
-        document.getElementById("modal-report").classList.remove("hidden");
+        document.getElementById("modal-report").setAttribute("data-open", "true");
     } catch (err) {
         console.error("Error loading report:", err);
     }
