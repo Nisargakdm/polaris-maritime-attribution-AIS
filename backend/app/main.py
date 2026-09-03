@@ -1,4 +1,4 @@
-﻿import os
+import os
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,7 +42,11 @@ app.include_router(routes_attribution.router, prefix=settings.API_PREFIX)
 app.include_router(routes_report.router, prefix=settings.API_PREFIX)
 
 # Static files directory
-static_dir = Path(__file__).resolve().parent / "static"
+static_dir = (Path(__file__).resolve().parent / "static").resolve()
+
+if not static_dir.exists():
+    static_dir = (Path.cwd() / "backend" / "app" / "static").resolve()
+
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
@@ -60,7 +64,7 @@ async def serve_dashboard():
     index_file = static_dir / "index.html"
     if index_file.exists():
         return FileResponse(str(index_file))
-    return HTMLResponse("<h1>POLARIS Engine API Running. Visit <a href='/docs'>/docs</a></h1>")
+    return HTMLResponse(f"<h1>POLARIS Engine API Running. Visit <a href='/docs'>/docs</a></h1><p>Debug: {static_dir} | {index_file} | exists: {index_file.exists()}</p>")
 
 if __name__ == "__main__":
     import uvicorn

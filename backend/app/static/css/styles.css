@@ -9,18 +9,12 @@ html, body {
 
 body {
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    /* Bug 6: bump base font size — Tailwind text-xs = 12px, but we want 13px as the
-       practical floor so data rows (text-[11px]/text-[10px]) render at 12/11px respectively */
-    font-size: 13px;
+    font-size: 16px;
     display: flex;
     flex-direction: column;
 }
 
-/* Bug 6: floor small utility text sizes that Tailwind would otherwise set too small */
-.text-xs   { font-size: 12px !important; }
-.text-\[10px\] { font-size: 11px !important; }
-.text-\[9px\]  { font-size: 10px !important; }
-/* Leave text-[11px], text-sm and above unchanged */
+/* Floor hacks removed */
 
 /* The flex column that holds header + disclaimer + content row */
 #app-root {
@@ -42,8 +36,7 @@ body {
 /* Both sidebars must be height-constrained so overflow-y:auto actually works.
    The flex-col on the aside means children stack; min-height:0 lets the aside
    shrink to fit the content-row, after which overflow-y:auto provides the scroll. */
-#sidebar-left,
-#sidebar-right {
+#left-dashboard {
     min-height: 0;
     overflow-y: auto;   /* Bug 2/3: ensure scroll is always active */
     overflow-x: hidden;
@@ -52,21 +45,17 @@ body {
 /* Bug 2/3: the custom-scroll scrollbar styling must also appear on the sidebars.
    The class is already on the asides in HTML, so this just ensures the webkit
    scrollbar rules apply even when overflow comes from the CSS id rule above. */
-#sidebar-left::-webkit-scrollbar,
-#sidebar-right::-webkit-scrollbar {
+#dashboard-scroll-area::-webkit-scrollbar {
     width: 5px;
 }
-#sidebar-left::-webkit-scrollbar-track,
-#sidebar-right::-webkit-scrollbar-track {
+#dashboard-scroll-area::-webkit-scrollbar-track {
     background: #0b1329;
 }
-#sidebar-left::-webkit-scrollbar-thumb,
-#sidebar-right::-webkit-scrollbar-thumb {
+#dashboard-scroll-area::-webkit-scrollbar-thumb {
     background: #1e2e4f;
     border-radius: 3px;
 }
-#sidebar-left::-webkit-scrollbar-thumb:hover,
-#sidebar-right::-webkit-scrollbar-thumb:hover {
+#dashboard-scroll-area::-webkit-scrollbar-thumb:hover {
     background: #0ea5e9;
 }
 
@@ -179,6 +168,7 @@ code, pre, .font-mono {
 }
 
 .panel-info::after {
+    font-size: 16px;
     content: attr(data-tip);
     position: absolute;
     bottom: calc(100% + 6px);
@@ -189,7 +179,7 @@ code, pre, .font-mono {
     border: 1px solid #334155;
     border-radius: 6px;
     padding: 6px 9px;
-    font-size: 10px;
+    font-size: 16px;
     line-height: 1.5;
     white-space: nowrap;
     max-width: 260px;
@@ -208,14 +198,13 @@ code, pre, .font-mono {
 }
 
 /* Prevent tooltip clipping inside sidebars */
-#sidebar-left  .panel-info::after { left: 0; transform: none; }
-#sidebar-right .panel-info::after { left: auto; right: 0; transform: none; }
+#left-dashboard .panel-info::after { left: 0; transform: none; }
 
 /* ── Risk indicator badges ─────────────────────────────────────────────────── */
 .risk-badge {
     display: inline-flex;
     align-items: center;
-    font-size: 9px;
+    font-size: 14px;
     font-weight: 700;
     letter-spacing: 0.05em;
     padding: 1px 6px;
@@ -235,7 +224,7 @@ code, pre, .font-mono {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 10px;
+    font-size: 16px;
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -252,7 +241,7 @@ code, pre, .font-mono {
     align-items: center;
     justify-content: space-between;
     gap: 6px;
-    font-size: 10px;
+    font-size: 16px;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -279,7 +268,7 @@ code, pre, .font-mono {
     color: #e2e8f0 !important;
     border: 1px solid #334155 !important;
     border-radius: 4px !important;
-    font-size: 10px !important;
+    font-size: 16px !important;
     padding: 2px 6px !important;
     box-shadow: none !important;
 }
