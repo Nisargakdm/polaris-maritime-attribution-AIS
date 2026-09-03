@@ -346,44 +346,40 @@ Computes a general behavioral risk indicator for any vessel from its **full hist
 
 ## 10. Dashboard Interface
 
-The single-page GIS dashboard (`backend/app/static/index.html`) is a three-column layout locked to the browser viewport.
+The single-page GIS dashboard (`backend/app/static/index.html`) features a consolidated left control dashboard alongside an expansive interactive map. The dashboard is collapsible to maximize map area.
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  HEADER: POLARIS | Historical/Simulation Mode badge | Scenario selector  │
-│           SAR Active | Evidence Graph | Weights | Investigation Brief    │
-│  DISCLAIMER: forensic decision support notice                            │
-├──────────────────┬──────────────────────────────┬───────────────────────┤
-│  LEFT SIDEBAR    │  GIS MAP (Leaflet, fills all  │  RIGHT SIDEBAR        │
-│  (scrollable)    │  remaining height)            │  (scrollable)         │
-│                  │                               │                       │
-│  Investigation   │  Layer toggles overlay        │  VESSEL RANKING       │
-│  Workflow (6     │  Basemap switcher             │  Ranked cards, each   │
-│  pipeline steps) │  Zoom shortcuts               │  showing:             │
-│                  │                               │  · Incident score %   │
-│  Spill Detection │  GIS Symbology legend:        │  · Risk badge         │
-│  Evidence        │  · Oil slick (red)            │                       │
-│  (SAR metadata)  │  · Origin zone (amber)        │  Attribution Weights  │
-│                  │  · Heatmap gradient           │  strip + Edit         │
-│  Drift           │  · Vessel tier colors         │                       │
-│  Reconstruction  │  · Track line styles          │  SELECTED VESSEL      │
-│  (origin coords, │  · Drift particles            │  · Name + tier badge  │
-│   uncertainty,   │                               │  · Score Summary:     │
-│   forcing note)  │  Timeline scrubber (–48h→T0)  │    Incident Corr. %   │
-│                  │  animate particles + vessels  │    General Risk badge │
-│  AIS Source &    │                               │  · Identity grid      │
-│  Coverage        │                               │  · Tech specs         │
-│                  │                               │  · SOG sparkline      │
-│                  │                               │  · Sub-score bars     │
-│                  │                               │  · Evidence points    │
-│                  │                               │  · Anomaly flags      │
-│                  │                               │  · Risk breakdown     │
-│                  │                               │    (when available)   │
-│                  │                               │  · Flag / Exclude     │
-└──────────────────┴──────────────────────────────┴───────────────────────┘
+│  HEADER: POLARIS | Historical/Simulation Mode badge | Scenario selector │
+│           SAR Active | Evidence Graph | Weights | Investigation Brief   │
+│  DISCLAIMER: forensic decision support notice                           │
+├──────────────────────────────┬──────────────────────────────────────────┤
+│  LEFT DASHBOARD              │  GIS MAP (Leaflet, fills all             │
+│  (collapsible & scrollable)  │  remaining width and height)             │
+│                              │                                          │
+│  [Collapse Button >]         │  Layer toggles overlay                   │
+│                              │  Basemap switcher                        │
+│  SECTION 1: Investigation    │  Zoom shortcuts                          │
+│  Workflow (6 pipeline steps) │                                          │
+│                              │  GIS Symbology legend:                   │
+│  SECTION 2: Vessel Ranking   │  · Oil slick (red)                       │
+│  Ranked cards showing:       │  · Origin zone (amber)                   │
+│  · Incident score %          │  · Heatmap gradient                      │
+│  · Risk badge                │  · Vessel tier colors                    │
+│                              │  · Track line styles                     │
+│  SECTION 3: Selected Vessel  │  · Drift particles                       │
+│  · Name + tier badge         │                                          │
+│  · Score Summary             │  Timeline scrubber (–48h→T0)             │
+│  · Identity grid             │  animate particles + vessels             │
+│  · Tech specs                │                                          │
+│  · Sub-score bars            │                                          │
+│  · Evidence points           │                                          │
+│  · Anomaly flags             │                                          │
+│  · Flag / Exclude actions    │                                          │
+└──────────────────────────────┴──────────────────────────────────────────┘
 ```
 
-Every panel has a labeled header and a `?` tooltip explaining what it shows and which API route feeds it. The layout uses CSS `height: 100%` + `min-height: 0` flex guards so neither sidebar nor the page scrolls at the page level — only sidebars scroll internally.
+Every panel has a labeled header and a `?` tooltip explaining what it shows and which API route feeds it. The layout uses CSS `height: 100%` + `min-height: 0` flex guards so the page never scrolls globally — only the internal dashboard sections scroll. The dashboard features high-contrast typography scaled for optimal readability and a prominent minimize button (cyan chevron) to instantly collapse the control panel and maximize spatial intelligence on the map.
 
 ---
 
