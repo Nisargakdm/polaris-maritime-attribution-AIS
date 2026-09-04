@@ -47,14 +47,12 @@
 <div>
 <div class="flex items-center space-x-2">
 <span class="font-black tracking-wider text-base text-slate-100">POLARIS</span>
-<span class="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 font-bold">Attribution Engine</span>
 <!-- ★ SIMULATION MODE BADGE — always visible in header -->
 <span id="sim-mode-badge" title="Data shown is a constructed demo scenario. Not a verified real-world spill-to-vessel match.">
 <i class="w-3 h-3" data-lucide="flask-conical"></i>
                         Historical / Simulation Mode
                     </span>
 </div>
-<p class="text-[10px] text-slate-400">Probabilistic Maritime Pollution Decision Support • SIH26143</p>
 </div>
 </div>
 <div class="flex items-center space-x-2 bg-navy-850 border border-navy-700 rounded-lg px-3 py-1.5 shadow-inner">
@@ -372,9 +370,9 @@
              ════════════════════════════════════════════════════ -->
 <main class="flex-1 flex flex-col relative bg-navy-950 min-w-0">
 <!-- Map top-left overlays -->
-<div class="absolute top-3 left-3 z-10 flex flex-col space-y-2 max-w-xs">
+<div class="absolute top-3 left-3 bottom-14 z-10 flex flex-col space-y-2 max-w-xs overflow-y-auto overflow-x-hidden custom-scroll pointer-events-none pr-1 pb-2">
 <!-- Basemap switcher -->
-<div class="bg-navy-900/90 backdrop-blur-md border border-navy-700/80 rounded-lg shadow-xl p-2 text-xs">
+<div class="bg-navy-900/90 backdrop-blur-md border border-navy-700/80 rounded-lg shadow-xl p-2 text-xs pointer-events-auto shrink-0">
 <div class="panel-header mb-1.5">
 <span class="panel-title text-[10px]">
 <i class="w-3 h-3" data-lucide="map"></i>
@@ -389,7 +387,7 @@
 </div>
 </div>
 <!-- Forensic layer toggles -->
-<div class="bg-navy-900/90 backdrop-blur-md border border-navy-700/80 rounded-lg shadow-xl p-2.5 text-xs space-y-1.5" id="map-layer-panel">
+<div class="bg-navy-900/90 backdrop-blur-md border border-navy-700/80 rounded-lg shadow-xl p-2.5 text-xs space-y-1.5 pointer-events-auto shrink-0" id="map-layer-panel">
 <div class="panel-header mb-1">
 <span class="panel-title text-[10px]">
 <i class="w-3 h-3" data-lucide="layers"></i>
@@ -405,16 +403,8 @@
 <label class="flex items-center space-x-2 text-slate-200 cursor-pointer hover:text-white"><input checked="" class="rounded border-slate-700 text-ocean-600 focus:ring-0" id="layer-particles" type="checkbox"/><span>Lagrangian Drift Particles</span></label>
 <label class="flex items-center space-x-2 text-slate-200 cursor-pointer hover:text-white"><input checked="" class="rounded border-slate-700 text-ocean-600 focus:ring-0" id="layer-ais-tracks" type="checkbox"/><span>AIS Vessel Trajectories</span></label>
 </div>
-<!-- Zoom shortcuts -->
-<div class="flex items-center space-x-1 bg-navy-900/90 backdrop-blur-md border border-navy-700/80 rounded-lg p-1 shadow-xl">
-<button class="px-2 py-1 bg-navy-850 hover:bg-navy-700 rounded text-[10px] text-slate-200 font-medium transition" id="btn-fit-spill">Spill</button>
-<button class="px-2 py-1 bg-navy-850 hover:bg-navy-700 rounded text-[10px] text-slate-200 font-medium transition" id="btn-fit-origin">Origin</button>
-<button class="px-2 py-1 bg-navy-850 hover:bg-navy-700 rounded text-[10px] text-slate-200 font-medium transition" id="btn-fit-all">All</button>
-<button class="px-2 py-1 bg-navy-850 hover:bg-navy-700 rounded text-[10px] text-cyan-400 font-medium transition flex items-center space-x-1" id="btn-measure-tool"><i class="w-3 h-3" data-lucide="ruler"></i><span>Ruler</span></button>
-</div>
-</div>
-<!-- ★ MAP LEGEND — bottom-left, extended with all symbol types -->
-<div class="absolute bottom-16 left-3 z-10 bg-navy-900/90 backdrop-blur-md border border-navy-700/80 rounded-lg shadow-xl p-2.5 text-[10px] space-y-1.5">
+<!-- ★ MAP LEGEND — GIS Symbology -->
+<div class="bg-navy-900/90 backdrop-blur-md border border-navy-700/80 rounded-lg shadow-xl p-2.5 text-[10px] space-y-1.5 pointer-events-auto shrink-0">
 <div class="panel-header mb-1">
 <span class="panel-title text-[9px]">
 <i class="w-3 h-3" data-lucide="map-pin"></i>
@@ -440,6 +430,14 @@
 <!-- Drift particles -->
 <div class="text-[9px] font-bold uppercase tracking-widest text-slate-500 mt-1.5 mb-0.5">Drift Particles</div>
 <div class="flex items-center space-x-2"><span class="w-3 h-0.5 bg-sky-400 shrink-0"></span><span class="text-slate-300">Backward drift particle path</span></div>
+</div>
+<!-- Zoom shortcuts -->
+<div class="flex items-center space-x-1 bg-navy-900/90 backdrop-blur-md border border-navy-700/80 rounded-lg p-1 shadow-xl pointer-events-auto shrink-0">
+<button class="px-2 py-1 bg-navy-850 hover:bg-navy-700 rounded text-[10px] text-slate-200 font-medium transition" id="btn-fit-spill">Spill</button>
+<button class="px-2 py-1 bg-navy-850 hover:bg-navy-700 rounded text-[10px] text-slate-200 font-medium transition" id="btn-fit-origin">Origin</button>
+<button class="px-2 py-1 bg-navy-850 hover:bg-navy-700 rounded text-[10px] text-slate-200 font-medium transition" id="btn-fit-all">All</button>
+<button class="px-2 py-1 bg-navy-850 hover:bg-navy-700 rounded text-[10px] text-cyan-400 font-medium transition flex items-center space-x-1" id="btn-measure-tool"><i class="w-3 h-3" data-lucide="ruler"></i><span>Ruler</span></button>
+</div>
 </div>
 <!-- Cursor coords -->
 <div class="absolute bottom-16 right-3 z-10 bg-navy-900/90 backdrop-blur-md border border-navy-700/80 rounded-lg px-2.5 py-1 text-[10px] text-slate-300 font-mono shadow-xl flex items-center space-x-3">
